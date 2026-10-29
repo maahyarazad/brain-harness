@@ -1,0 +1,35 @@
+// Example tool used by docs/adding-a-tool.md.
+// To enable it: rename this file to echo.js and add it to ./index.js.
+
+import { z } from "zod";
+
+// 1. The name. Claude and every MCP client call the tool by this name.
+//    Use snake_case and keep it short and unique.
+export const name = "echo";
+
+// 2. The config.
+//    - title: a human-friendly label (shown in the playground's tool list)
+//    - description: what Claude reads to decide WHEN to use this tool.
+//      Be specific about what it does and when it's useful.
+//    - inputSchema: the arguments, as Zod fields. The MCP SDK turns this into
+//      a JSON Schema for clients and validates incoming arguments for you.
+//      .describe() text tells Claude what each argument means.
+export const config = {
+  title: "Echo",
+  description:
+    "Repeat a message back exactly as given. Useful for testing that tool calls work.",
+  inputSchema: {
+    message: z.string().min(1).describe("The text to repeat back"),
+  },
+};
+
+// 3. The handler. It receives the validated arguments and returns content.
+//    - Success: { content: [{ type: "text", text: "..." }] }
+//    - Failure: add isError: true so Claude knows it failed and can recover.
+//    Secrets (API tokens for Slack, Telegram, ...) come from process.env,
+//    never from arguments, and are never put in the returned text.
+export async function handler({ message }) {
+  return {
+    content: [{ type: "text", text: message }],
+  };
+}
