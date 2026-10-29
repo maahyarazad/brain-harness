@@ -45,10 +45,17 @@ jobs:
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
+          if ! printf '%s' "$EC2_SSH_KEY" | grep -q -- "-----BEGIN .*PRIVATE KEY-----"; then
+            echo "::error::EC2_SSH_KEY must be the PRIVATE key file (starts with -----BEGIN ... PRIVATE KEY-----), not the ssh-ed25519/ssh-rsa public key line."
+            exit 1
+          fi
           mkdir -p ~/.ssh
           printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2
           chmod 600 ~/.ssh/ec2
-          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+          if ! ssh-keyscan -T 15 -H "$EC2_HOST" >> ~/.ssh/known_hosts; then
+            echo "::error::Can't reach $EC2_HOST on port 22 from the GitHub runner. Allow inbound SSH (22) in the EC2 security group for GitHub Actions runners."
+            exit 1
+          fi
 
       - name: Upload build
         run: |
