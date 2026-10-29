@@ -11,7 +11,7 @@ The longer-term goal is a versatile MCP server that connects to services like Sl
 | `server/` | The MCP server (Fastify + MCP SDK + Anthropic SDK). One file per tool in `server/src/mcp/tools/`. |
 | `web-client/` | The playground (Vite + React). |
 | `docs/` | Guides: [`docs/adding-a-tool.md`](docs/adding-a-tool.md), [`docs/deploy.md`](docs/deploy.md). |
-| `deploy/` | EC2 setup script, systemd service and nginx config. |
+| `deploy/` | nginx config for the EC2 instance (the server runs under PM2, see `server/ecosystem.config.cjs`). |
 | `.github/workflows/` | GitHub Actions that deploy the server and the web client to EC2. |
 | `specs/` | The feature spec, plan and tasks this was built from. |
 
@@ -46,7 +46,7 @@ To pick a different model, set `ANTHROPIC_MODEL` in `server/.env` (default `clau
 
 ## Deploy
 
-Pushing to `main` deploys to EC2 through two GitHub Actions workflows. One-time setup and the required secrets are in [`docs/deploy.md`](docs/deploy.md).
+Pushing to `main` deploys to EC2 through two GitHub Actions workflows. Instance requirements and the required secrets are in [`docs/deploy.md`](docs/deploy.md).
 
 ## Tests
 

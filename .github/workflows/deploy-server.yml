@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - "server/**"
-      - "deploy/brain-harness.service"
       - ".github/workflows/deploy-server.yml"
   workflow_dispatch:
 
@@ -68,7 +67,8 @@ jobs:
           ssh ec2 "set -e
             cd $APP_DIR
             npm ci --omit=dev
-            sudo systemctl restart brain-harness
+            pm2 startOrReload ecosystem.config.cjs --update-env
+            pm2 save
             curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3000/health"
 
       - name: Check public health endpoint
