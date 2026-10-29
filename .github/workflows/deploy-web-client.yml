@@ -50,8 +50,15 @@ jobs:
             exit 1
           fi
           mkdir -p ~/.ssh
-          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2
+          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/ec2
           chmod 600 ~/.ssh/ec2
+          # Fails if the key has a passphrase or is damaged. The fingerprint is
+          # safe to log; compare it with `ssh-keygen -lf ~/.ssh/authorized_keys` on the server.
+          if ! ssh-keygen -y -P "" -f ~/.ssh/ec2 > ~/.ssh/ec2.pub; then
+            echo "::error::EC2_SSH_KEY can't be loaded: it has a passphrase or wasn't copied completely. Use a key made with: ssh-keygen -t ed25519 -N \"\""
+            exit 1
+          fi
+          echo "Deploy key fingerprint: $(ssh-keygen -lf ~/.ssh/ec2.pub)"
           if ! ssh-keyscan -T 15 -H "$EC2_HOST" >> ~/.ssh/known_hosts; then
             echo "::error::Can't reach $EC2_HOST on port 22 from the GitHub runner. Allow inbound SSH (22) in the EC2 security group for GitHub Actions runners."
             exit 1
