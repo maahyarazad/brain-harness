@@ -15,7 +15,6 @@ concurrency:
 
 env:
   EC2_HOST: 13.63.233.210
-  EC2_USER: ubuntu
   APP_DIR: /var/www/brain-harness/server
   CORS_ORIGIN: http://ec2-13-63-233-210.eu-north-1.compute.amazonaws.com
 
@@ -41,31 +40,14 @@ jobs:
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
-          if ! printf '%s' "$EC2_SSH_KEY" | grep -q -- "-----BEGIN .*PRIVATE KEY-----"; then
-            echo "::error::EC2_SSH_KEY must be the PRIVATE key file (starts with -----BEGIN ... PRIVATE KEY-----), not the ssh-ed25519/ssh-rsa public key line."
-            exit 1
-          fi
           mkdir -p ~/.ssh
-          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/ec2
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2
           chmod 600 ~/.ssh/ec2
-          # Fails if the key has a passphrase or is damaged. The fingerprint is
-          # safe to log; compare it with `ssh-keygen -lf ~/.ssh/authorized_keys` on the server.
-          if ! ssh-keygen -y -P "" -f ~/.ssh/ec2 > ~/.ssh/ec2.pub; then
-            echo "::error::EC2_SSH_KEY can't be loaded: it has a passphrase or wasn't copied completely. Use a key made with: ssh-keygen -t ed25519 -N \"\""
-            exit 1
-          fi
-          echo "Deploy key fingerprint: $(ssh-keygen -lf ~/.ssh/ec2.pub)"
-          if ! ssh-keyscan -T 15 -H "$EC2_HOST" >> ~/.ssh/known_hosts; then
-            echo "::error::Can't reach $EC2_HOST on port 22 from the GitHub runner. Allow inbound SSH (22) in the EC2 security group for GitHub Actions runners."
-            exit 1
-          fi
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+          printf 'Host ec2\n  HostName %s\n  User ubuntu\n  IdentityFile ~/.ssh/ec2\n' "$EC2_HOST" > ~/.ssh/config
 
       - name: Upload code
-        run: |
-          rsync -az --delete \
-            --exclude node_modules --exclude .env --exclude test \
-            -e "ssh -i ~/.ssh/ec2" \
-            server/ "$EC2_USER@$EC2_HOST:$APP_DIR/"
+        run: rsync -az --delete --exclude node_modules --exclude .env --exclude test server/ "ec2:$APP_DIR/"
 
       - name: Write server .env
         env:
@@ -79,17 +61,15 @@ jobs:
             "PORT=3000" \
             "HOST=127.0.0.1" \
             "CORS_ORIGIN=$CORS_ORIGIN" \
-          | ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "umask 077 && cat > $APP_DIR/.env"
+          | ssh ec2 "umask 077 && cat > $APP_DIR/.env"
 
       - name: Install dependencies and restart
         run: |
-          ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "
-            set -e
+          ssh ec2 "set -e
             cd $APP_DIR
             npm ci --omit=dev
             sudo systemctl restart brain-harness
-            curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3000/health
-          "
+            curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3000/health"
 
       - name: Check public health endpoint
         run: curl -fsS --retry 5 --retry-delay 3 "$CORS_ORIGIN/health"
