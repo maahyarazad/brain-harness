@@ -1,0 +1,81 @@
+name: Deploy server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "deploy/brain-harness.service"
+      - ".github/workflows/deploy-server.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
+
+env:
+  EC2_HOST: 13.63.233.210
+  EC2_USER: ubuntu
+  APP_DIR: /var/www/brain-harness/server
+  CORS_ORIGIN: http://ec2-13-63-233-210.eu-north-1.compute.amazonaws.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install and test
+        working-directory: server
+        run: |
+          npm ci
+          npm test
+
+      - name: Set up SSH
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2
+          chmod 600 ~/.ssh/ec2
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload code
+        run: |
+          rsync -az --delete \
+            --exclude node_modules --exclude .env --exclude test \
+            -e "ssh -i ~/.ssh/ec2" \
+            server/ "$EC2_USER@$EC2_HOST:$APP_DIR/"
+
+      - name: Write server .env
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5-5' }}
+        run: |
+          # Sent over stdin so the key never appears in a command line or log
+          printf '%s\n' \
+            "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" \
+            "ANTHROPIC_MODEL=$ANTHROPIC_MODEL" \
+            "PORT=3000" \
+            "HOST=127.0.0.1" \
+            "CORS_ORIGIN=$CORS_ORIGIN" \
+          | ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "umask 077 && cat > $APP_DIR/.env"
+
+      - name: Install dependencies and restart
+        run: |
+          ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "
+            set -e
+            cd $APP_DIR
+            npm ci --omit=dev
+            sudo systemctl restart brain-harness
+            curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3000/health
+          "
+
+      - name: Check public health endpoint
+        run: curl -fsS --retry 5 --retry-delay 3 "$CORS_ORIGIN/health"
