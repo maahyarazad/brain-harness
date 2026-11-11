@@ -70,3 +70,7 @@ File name: `<saved name, slugified>.vizstudio.json`
 ## 4. Image download
 
 `canvas.toBlob("image/png")` of the current frame at the canvas's device-pixel size, named `<vizId>-<yyyymmdd-hhmmss>.png`.
+
+## 5. Video download
+
+`canvas.captureStream(30)` recorded with `MediaRecorder` at 8 Mbit/s. The MIME type is the first of `video/mp4;codecs=avc1`, `video/mp4`, `video/webm;codecs=vp9`, `video/webm;codecs=vp8`, `video/webm` that `MediaRecorder.isTypeSupported` accepts; with none, recording is not offered. The file is named `<vizId>-<yyyymmdd-hhmmss>.mp4` or `.webm` and its Blob type has the codecs stripped (`video/mp4`, `video/webm`). Recording stops at 60 s (and downloads), and is cancelled without a download when the user leaves the visualization or the tab is hidden.

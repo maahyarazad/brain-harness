@@ -7,7 +7,7 @@ export default {
   id: "mandelbrot",
   name: "Mandelbrot set",
   howItWorks:
-    "For each point c of the plane, start at z = 0 and repeat z → z² + c. If z stays small forever, c is in the set (drawn dark). Otherwise the point is colored by how quickly z escapes. Drag to pan, scroll or double-click to zoom, use + / − and the arrow keys from the keyboard, and Shift+click a point to open the Julia set for that c.",
+    "For each point c of the plane, start at z = 0 and repeat z → z² + c. If z stays small forever, c is in the set (drawn dark). Otherwise the point is colored by how quickly z escapes. Drag to pan; scroll, pinch, double-click or use the + / − buttons to zoom (⟲ resets the view); the + / − and arrow keys work from the keyboard; and Shift+click a point to open the Julia set for that c.",
   animated: false,
   random: false,
   interactive: true,

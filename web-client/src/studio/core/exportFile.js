@@ -1,4 +1,5 @@
-// Thumbnails, PNG download, and .vizstudio.json export/import (contracts/persistence-formats.md §3–4).
+// Thumbnails, file downloads (PNG, video), and .vizstudio.json export/import
+// (contracts/persistence-formats.md §3–5).
 import { findEntry } from "../catalog.js";
 import { validateConfig } from "./knobs.js";
 
@@ -21,7 +22,7 @@ export function makeThumbnail(canvas, w = 160, h = 120) {
   }
 }
 
-function triggerDownload(blob, filename) {
+export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -29,22 +30,24 @@ function triggerDownload(blob, filename) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+  // Revoke after the click has been handled; Safari needs a little time.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function stamp(d = new Date()) {
+/** yyyymmdd-hhmmss in local time, used in downloaded file names. */
+export function fileStamp(d = new Date()) {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
 export function pngFilename(vizId, date) {
-  return `${vizId}-${stamp(date)}.png`;
+  return `${vizId}-${fileStamp(date)}.png`;
 }
 
 export function downloadPng(canvas, vizId) {
   return new Promise((resolve) => {
     canvas.toBlob((blob) => {
-      if (blob) triggerDownload(blob, pngFilename(vizId));
+      if (blob) downloadBlob(blob, pngFilename(vizId));
       resolve(Boolean(blob));
     }, "image/png");
   });
@@ -66,7 +69,7 @@ export function buildExport(items) {
 export function exportSaved(items, filename) {
   const data = buildExport(items);
   const name = filename ?? (items.length === 1 ? slugify(items[0].name) : "my-visualizations");
-  triggerDownload(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), `${name}.vizstudio.json`);
+  downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), `${name}.vizstudio.json`);
 }
 
 /**

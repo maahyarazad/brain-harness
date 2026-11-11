@@ -256,19 +256,106 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   function send(type, e, extra = {}) {
     if (!module?.interactive || !instRef.current?.pointer) return undefined;
     const p = e && "clientX" in e ? toCanvas(e) : { x: 0, y: 0 };
-    return instRef.current.pointer({ type, ...p, button: e?.button ?? 0, shiftKey: Boolean(e?.shiftKey), ...extra });
+    return instRef.current.pointer({
+      type,
+      ...p,
+      button: e?.button ?? 0,
+      shiftKey: Boolean(e?.shiftKey),
+      ctrlKey: Boolean(e?.ctrlKey),
+      ...extra,
+    });
+  }
+
+  // Active pointers (pointerId → canvas position). With two pointers down the
+  // shell turns their movement into "pinch" events instead of drags.
+  const pointers = useRef(new Map());
+  const pinchDist = useRef(null);
+
+  function pinchState() {
+    const [a, b] = [...pointers.current.values()];
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, dist: Math.hypot(a.x - b.x, a.y - b.y) };
+  }
+
+  function onPointerDown(e) {
+    if (module?.interactive) e.currentTarget.setPointerCapture?.(e.pointerId);
+    const p = toCanvas(e);
+    pointers.current.set(e.pointerId, p);
+    if (pointers.current.size === 2) {
+      // The first pointer was dragging: tell the module to drop that drag.
+      send("up", e, { ...p, cancelDrag: true });
+      pinchDist.current = pinchState().dist;
+      return;
+    }
+    if (pointers.current.size > 2) return;
+    send("down", e);
+  }
+
+  function onPointerMove(e) {
+    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, toCanvas(e));
+    if (pointers.current.size >= 2) {
+      if (pointers.current.size !== 2) return;
+      const { x, y, dist } = pinchState();
+      const prev = pinchDist.current;
+      pinchDist.current = dist;
+      if (prev !== null && prev >= 1 && dist >= 1) send("pinch", e, { x, y, scale: dist / prev });
+      return;
+    }
+    send("move", e);
+  }
+
+  function onPointerEnd(type, e) {
+    const wasPinching = pointers.current.size >= 2;
+    const known = pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinchDist.current = null;
+    // Lifting a finger of a pinch must not start or finish a drag.
+    if (wasPinching) return;
+    if (!known && type === "up") return;
+    send(type, e);
   }
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !module?.interactive) return;
+    const zoomable = Boolean(module.defaultView);
     const onWheel = (e) => {
-      if (send("wheel", e, { deltaY: e.deltaY }) !== undefined || module.id === "mandelbrot" || module.id === "julia") e.preventDefault();
+      // Normalize to pixels: Firefox reports lines (deltaMode 1) for many mice.
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? canvas.height : 1;
+      if (send("wheel", e, { deltaY: e.deltaY * unit }) !== undefined || zoomable) e.preventDefault();
     };
+    // Safari reports trackpad pinch as gesture events, not ctrl + wheel.
+    let lastScale = 1;
+    const onGestureStart = (e) => {
+      e.preventDefault();
+      lastScale = 1;
+    };
+    const onGestureChange = (e) => {
+      e.preventDefault();
+      if (!(e.scale > 0)) return;
+      send("pinch", e, { scale: e.scale / lastScale });
+      lastScale = e.scale;
+    };
+    const onGestureEnd = (e) => e.preventDefault();
     canvas.addEventListener("wheel", onWheel, { passive: false });
-    return () => canvas.removeEventListener("wheel", onWheel);
+    canvas.addEventListener("gesturestart", onGestureStart, { passive: false });
+    canvas.addEventListener("gesturechange", onGestureChange, { passive: false });
+    canvas.addEventListener("gestureend", onGestureEnd, { passive: false });
+    return () => {
+      canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("gesturestart", onGestureStart);
+      canvas.removeEventListener("gesturechange", onGestureChange);
+      canvas.removeEventListener("gestureend", onGestureEnd);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [module]);
+
+  function zoomButton(key) {
+    send("key", null, { key });
+    canvasRef.current?.focus({ preventScroll: true });
+  }
+
+  function onResetView() {
+    restartWith({ ...configRef.current, view: { ...module.defaultView } });
+  }
 
   function onKeyDown(e) {
     if (send("key", null, { key: e.key }) === true) {
@@ -316,7 +403,18 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
             <button type="button" className="btn btn-primary" onClick={() => setSaveOpen(true)}>
               Save
             </button>
-            <ShareMenu module={module} config={config} canvasRef={canvasRef} vizId={entry.id} name={saved?.name ?? entry.name} />
+            <ShareMenu
+              module={module}
+              config={config}
+              canvasRef={canvasRef}
+              vizId={entry.id}
+              name={saved?.name ?? entry.name}
+              active={active}
+              recordable={module.animated || module.interactive}
+              // Recording is an explicit request to see motion, so it starts
+              // playback even when reduced motion started the animation paused.
+              onRecordStart={module.animated ? () => loopRef.current?.play() : undefined}
+            />
           </>
         )}
       </div>
@@ -330,17 +428,28 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
               tabIndex={0}
               role="img"
               aria-label={interactionHint}
-              onPointerDown={(e) => {
-                if (module?.interactive) e.currentTarget.setPointerCapture?.(e.pointerId);
-                send("down", e);
-              }}
-              onPointerMove={(e) => send("move", e)}
-              onPointerUp={(e) => send("up", e)}
-              onPointerLeave={(e) => send("leave", e)}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={(e) => onPointerEnd("up", e)}
+              onPointerCancel={(e) => onPointerEnd("up", e)}
+              onPointerLeave={(e) => onPointerEnd("leave", e)}
               onDoubleClick={(e) => send("dblclick", e)}
               onContextMenu={(e) => module?.interactive && e.preventDefault()}
               onKeyDown={onKeyDown}
             />
+            {ready && module.interactive && module.defaultView && (
+              <div className="zoom-controls" role="group" aria-label="Zoom">
+                <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => zoomButton("+")}>
+                  +
+                </button>
+                <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => zoomButton("-")}>
+                  −
+                </button>
+                <button type="button" aria-label="Reset view" title="Reset view" onClick={onResetView}>
+                  ⟲
+                </button>
+              </div>
+            )}
             {!ready && <p className="canvas-loading">Loading…</p>}
             {computing !== null && (
               <div className="progress" role="progressbar" aria-label="Drawing" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(computing * 100)}>

@@ -37,3 +37,51 @@ export function setVisibility(state) {
   Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
   document.dispatchEvent(new Event("visibilitychange"));
 }
+
+// --- MediaRecorder / captureStream fakes (video download tests) ---
+
+export class FakeMediaRecorder {
+  static supported = [];
+  static instances = [];
+  static isTypeSupported(type) {
+    return FakeMediaRecorder.supported.includes(type);
+  }
+  constructor(stream, options = {}) {
+    this.stream = stream;
+    this.mimeType = options.mimeType ?? "";
+    this.options = options;
+    this.state = "inactive";
+    this.ondataavailable = null;
+    this.onstop = null;
+    FakeMediaRecorder.instances.push(this);
+  }
+  start(timeslice) {
+    this.timeslice = timeslice;
+    this.state = "recording";
+  }
+  stop() {
+    if (this.state === "inactive") return;
+    this.state = "inactive";
+    this.ondataavailable?.({ data: new Blob(["frame"], { type: this.mimeType }) });
+    this.onstop?.();
+  }
+}
+
+/** Turns recording support on: `types` are the MIME types MediaRecorder accepts. */
+export function installMediaRecorder({ types = ["video/webm;codecs=vp9", "video/webm"] } = {}) {
+  FakeMediaRecorder.supported = types;
+  FakeMediaRecorder.instances = [];
+  globalThis.MediaRecorder = FakeMediaRecorder;
+  window.MediaRecorder = FakeMediaRecorder;
+  HTMLCanvasElement.prototype.captureStream = function captureStream(fps) {
+    const track = { stopped: false, stop() { this.stopped = true; } };
+    return { fps, tracks: [track], getTracks: () => [track] };
+  };
+}
+
+/** Turns recording support off. */
+export function removeMediaRecorder() {
+  delete globalThis.MediaRecorder;
+  delete window.MediaRecorder;
+  delete HTMLCanvasElement.prototype.captureStream;
+}

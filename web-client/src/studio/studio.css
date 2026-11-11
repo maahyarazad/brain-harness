@@ -323,6 +323,16 @@
   align-items: center;
 }
 
+.rec-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #e5484d;
+  vertical-align: 1px;
+}
+
 .share-msg {
   font-size: 13px;
   color: var(--muted);
@@ -354,6 +364,50 @@
   display: block;
   max-width: 100%;
   touch-action: none;
+}
+
+/* Zoom buttons for pan/zoom visualizations. The canvas is dark in both
+   themes, so the buttons use a dark glass look in both. */
+.zoom-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1;
+}
+
+.zoom-controls button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: rgba(20, 20, 26, 0.72);
+  color: #f2f2f5;
+  font: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.zoom-controls button:hover {
+  background: rgba(40, 40, 52, 0.9);
+}
+
+.zoom-controls button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--accent);
+}
+
+@media (pointer: coarse) {
+  .zoom-controls button {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 .canvas-loading {

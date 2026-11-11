@@ -53,6 +53,24 @@ runs it in small slices so the page never freezes. Very heavy pure computations 
 Worker: register the kernel with `registerKernel(name, fn)`, add it to `workers/kernels.js`, and call
 `ctx.runKernel(name, args)`.
 
+### Interaction
+
+Interactive modules (`interactive: true`) get `pointer(event)` calls with positions in canvas
+device pixels. Besides `down`/`move`/`up`/`leave`/`dblclick`/`key`, the studio sends:
+
+- `wheel` with `deltaY` already converted to pixels, and `ctrlKey: true` for a trackpad pinch in
+  Chrome/Firefox (zoom faster then).
+- `pinch` with `scale` (ratio since the previous pinch event, > 1 zooms in) around `x`,`y`, for
+  two-finger touch and Safari trackpad pinch. Pinch events arrive in bursts: update the view on
+  each one but redraw at most once per animation frame.
+- `up` with `cancelDrag: true` when a second finger goes down: drop the drag without applying it.
+
+Declare `defaultView` (as Mandelbrot and Julia do) to get on-screen Zoom in, Zoom out and Reset
+view buttons; + and − arrive as `key` events. Animated or interactive modules also get a Record
+video button; nothing is needed in the module for that.
+
+See [`contracts/visualization-module.md`](../specs/003-visualization-studio/contracts/visualization-module.md).
+
 ## 3. Add it to the catalog
 
 Add one line to `web-client/src/studio/catalog.js` with the id, name, category, a glyph for the

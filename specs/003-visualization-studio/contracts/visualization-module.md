@@ -53,7 +53,7 @@ The Instance:
 | `render()` | if `animated` | Draw the current state. Called once per animation frame. |
 | `reset()` | if `animated` | Return to the initial state for the current config and seed. |
 | `resize(width, height)` | yes | Canvas size changed (device pixels). Redraw without losing settings or simulation state where possible. |
-| `pointer(event)` | if `interactive` | Normalized `{type: "down"\|"move"\|"up"\|"leave"\|"dblclick"\|"wheel"\|"key", x, y, button, shiftKey, deltaY, key}` in canvas device pixels. Return `true` from a `key` event to mark it handled (the shell then skips its own shortcuts). |
+| `pointer(event)` | if `interactive` | Normalized `{type: "down"\|"move"\|"up"\|"leave"\|"dblclick"\|"wheel"\|"pinch"\|"key", x, y, button, shiftKey, ctrlKey, deltaY, scale, cancelDrag, key}` in canvas device pixels. `wheel`: `deltaY` is normalized to pixels by the shell (`deltaMode` 1 → ×16, 2 → ×canvas height); `ctrlKey` is true for a trackpad pinch in Chrome/Firefox. `pinch`: `scale` is the ratio since the previous pinch event (> 1 zooms in) around `x`,`y` = the midpoint. An `up` with `cancelDrag: true` means a second finger went down: drop any drag without applying it. Return `true` from a `key` event to mark it handled (the shell then skips its own shortcuts). |
 | `destroy()` | yes | Stop everything: cancel kernels, terminate workers, release buffers. The shell will not call anything after this. |
 
 ## Guarantees the shell gives modules

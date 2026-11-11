@@ -10,6 +10,8 @@ export function registerKernel(name, fn) {
 
 const hasWorker = () => typeof globalThis.Worker === "function" && !globalThis.__STUDIO_NO_WORKERS__;
 
+const KILL_AFTER_MS = 100;
+
 let pool = null;
 let nextId = 1;
 const jobs = new Map(); // id → job
@@ -20,7 +22,14 @@ function newWorker() {
   const slot = { worker: w, job: null };
   w.onmessage = (e) => {
     const job = jobs.get(e.data.id);
-    if (!job) return;
+    if (!job) {
+      // A cancelled job that was left to finish: free the worker for the next one.
+      if (!("progress" in e.data) && slot.job?.id === e.data.id) {
+        slot.job = null;
+        pump();
+      }
+      return;
+    }
     if ("progress" in e.data) {
       job.onProgress?.(e.data.progress);
       return;
@@ -57,6 +66,7 @@ function pump() {
     const job = queue.shift();
     slot.job = job;
     job.slot = slot;
+    job.startedAt = performance.now();
     slot.worker.postMessage({ id: job.id, name: job.name, args: job.args }, job.transfer ?? collectTransfer(job.args));
   }
 }
@@ -92,8 +102,10 @@ export function runKernel(name, args, { onProgress, transfer } = {}) {
       jobs.delete(id);
       const qi = queue.indexOf(job);
       if (qi >= 0) queue.splice(qi, 1);
-      if (job.slot) {
-        // Stop the running computation by replacing the worker.
+      // A job that has run for a while is stopped by replacing its worker.
+      // Short jobs (e.g. one band of a fractal during a pinch) are left to
+      // finish: restarting a module worker costs more than the rest of the job.
+      if (job.slot && job.slot.job === job && performance.now() - job.startedAt > KILL_AFTER_MS) {
         const i = pool.indexOf(job.slot);
         job.slot.worker.terminate();
         pool[i] = newWorker();

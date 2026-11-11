@@ -1,9 +1,9 @@
-import { render, screen, waitFor, within, act } from "@testing-library/react";
+import { render, screen, waitFor, within, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi, beforeEach, afterEach } from "vitest";
 import Root from "../../Root.jsx";
 import { installCanvasStub } from "./canvasStub.js";
-import { stubReducedMotion } from "./browserStubs.js";
+import { stubReducedMotion, installMediaRecorder, removeMediaRecorder, FakeMediaRecorder } from "./browserStubs.js";
 import { listSaved } from "../../studio/core/storage.js";
 
 vi.mock("../../api.js", () => ({
@@ -251,4 +251,114 @@ test("download image saves a PNG with a dated name", async () => {
   await waitFor(() => expect(names[0]).toMatch(/^phyllotaxis-\d{8}-\d{6}\.png$/));
   await user.click(screen.getByRole("button", { name: "Export settings" }));
   expect(names[1]).toBe("phyllotaxis.vizstudio.json");
+});
+
+// ---- US5: zoom on any device ----
+
+async function spyOnPointer(path) {
+  const mod = (await import(path)).default;
+  const events = [];
+  const orig = mod.create;
+  vi.spyOn(mod, "create").mockImplementation((...args) => {
+    const inst = orig(...args);
+    return { ...inst, pointer: (ev) => (events.push(ev), inst.pointer(ev)) };
+  });
+  return events;
+}
+
+test("two pointers moving apart send a pinch that zooms in", async () => {
+  const events = await spyOnPointer("../../studio/visualizations/mandelbrot/index.js");
+  await openViz("mandelbrot", "Mandelbrot set");
+  const canvas = screen.getByRole("img", { name: /Mandelbrot/ });
+  fireEvent.pointerDown(canvas, { pointerId: 1, clientX: 100, clientY: 100 });
+  fireEvent.pointerDown(canvas, { pointerId: 2, clientX: 120, clientY: 100 });
+  fireEvent.pointerMove(canvas, { pointerId: 2, clientX: 160, clientY: 100 });
+  fireEvent.pointerUp(canvas, { pointerId: 2, clientX: 160, clientY: 100 });
+  fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 100, clientY: 100 });
+  // First finger starts a drag, the second cancels it, movement pinches, and
+  // only the last finger's release reaches the module (the drag is already gone).
+  expect(events.map((e) => e.type + (e.cancelDrag ? ":cancel" : ""))).toEqual(["down", "up:cancel", "pinch", "up"]);
+  expect(events.find((e) => e.type === "pinch").scale).toBeCloseTo(3, 5); // 20 px apart → 60 px apart
+});
+
+test("line-mode wheel deltas are converted to pixels", async () => {
+  const events = await spyOnPointer("../../studio/visualizations/mandelbrot/index.js");
+  await openViz("mandelbrot", "Mandelbrot set");
+  const canvas = screen.getByRole("img", { name: /Mandelbrot/ });
+  fireEvent.wheel(canvas, { deltaY: 3, deltaMode: 1, clientX: 50, clientY: 50 });
+  expect(events.find((e) => e.type === "wheel").deltaY).toBe(48);
+});
+
+test("zoom buttons show on Mandelbrot and Julia only, and Reset view restores the default", async () => {
+  const user = await openViz("mandelbrot", "Mandelbrot set");
+  const stat = () => screen.getByText(/×$/).textContent;
+  expect(stat()).toBe("1.00×");
+  await user.click(screen.getByRole("button", { name: "Zoom in" }));
+  await waitFor(() => expect(stat()).toBe("1.50×"));
+  await user.click(screen.getByRole("button", { name: "Zoom in" }));
+  await user.click(screen.getByRole("button", { name: "Zoom out" }));
+  await waitFor(() => expect(stat()).toBe("1.50×"));
+  await user.click(screen.getByRole("button", { name: "Reset view" }));
+  await waitFor(() => expect(stat()).toBe("1.00×"));
+
+  document.body.replaceChildren();
+  await openViz("julia", "Julia set");
+  expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+
+  document.body.replaceChildren();
+  await openViz("ulam-spiral", "Ulam spiral");
+  expect(screen.queryByRole("button", { name: "Zoom in" })).toBeNull();
+});
+
+// ---- US6: video download ----
+
+function captureDownloads() {
+  URL.createObjectURL = vi.fn(() => "blob:x");
+  URL.revokeObjectURL = vi.fn();
+  const names = [];
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function () {
+    names.push(this.download);
+  });
+  return names;
+}
+
+describe("video download", () => {
+  beforeEach(() => installMediaRecorder({ types: ["video/webm;codecs=vp9", "video/webm"] }));
+  afterEach(() => removeMediaRecorder());
+
+  test("record, then stop, downloads a dated video and starts playback", async () => {
+    stubReducedMotion(true); // starts paused; recording should start it
+    const names = captureDownloads();
+    const user = await openViz("boids", "Boids");
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Record video" }));
+    const stop = await screen.findByRole("button", { name: /Stop recording · 0:00/ });
+    expect(stop).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    await user.click(stop);
+    await waitFor(() => expect(names[0]).toMatch(/^boids-\d{8}-\d{6}\.webm$/));
+    expect(screen.getByRole("button", { name: "Record video" })).toBeInTheDocument();
+  });
+
+  test("leaving the visualization while recording cancels without a download", async () => {
+    const names = captureDownloads();
+    const user = await openViz("boids", "Boids");
+    await user.click(screen.getByRole("button", { name: "Record video" }));
+    await screen.findByRole("button", { name: /Stop recording/ });
+    const recorder = FakeMediaRecorder.instances.at(-1);
+    await user.click(screen.getByRole("button", { name: "← Catalog" }));
+    await screen.findByRole("heading", { name: "Fractals" });
+    expect(recorder.state).toBe("inactive");
+    expect(names).toHaveLength(0);
+  });
+
+  test("the record button is hidden without browser support or on still pictures", async () => {
+    await openViz("phyllotaxis", "Phyllotaxis");
+    expect(screen.queryByRole("button", { name: "Record video" })).toBeNull();
+
+    document.body.replaceChildren();
+    removeMediaRecorder();
+    await openViz("boids", "Boids");
+    expect(screen.queryByRole("button", { name: "Record video" })).toBeNull();
+  });
 });

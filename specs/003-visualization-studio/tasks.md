@@ -185,6 +185,75 @@ description: "Task list for the Visualization Studio"
 
 ---
 
+## Phase 8: Scope update for the second increment (zoom fix and video download)
+
+**Purpose**: Bring the design documents in line with the two new stories before code changes. Video recording was listed as out of scope in spec.md; this increment brings it in.
+
+**Background for US5 (zoom)**: Reproduced on 2026-11-11 in headless Chrome against both `npm run dev` and `npm run build` + `vite preview`: mouse-wheel zoom, double-click zoom and the `+`/`-` keys all work on `/studio/mandelbrot`. What does not work: (a) two-finger pinch on touch screens: `.viz-canvas` has `touch-action: none` and `Viewer.jsx` only tracks one pointer, so pinch does nothing; (b) trackpad pinch in Safari, which fires `gesturestart`/`gesturechange` instead of `wheel` (neither is handled, so the canvas never sees it); (c) trackpad pinch in Chrome/Firefox, which arrives as `wheel` with `ctrlKey: true` and small `deltaY`, so it zooms very slowly, and Firefox line-mode wheel events (`deltaMode === 1`, `deltaY ≈ 3`) barely zoom at all; (d) there is no visible zoom control, so on a device without a mouse wheel there is no discoverable way to zoom. Mandelbrot and Julia share `web-client/src/studio/visualizations/mandelbrot/escapeView.js`, so every fix applies to both.
+
+- [X] T087 Update `specs/003-visualization-studio/spec.md`: add "User Story 5 - Zoom fractals on any device (Priority: P1)" (pinch on touch, pinch on trackpad in every supported browser, visible zoom-in / zoom-out / reset-view buttons; independent test: on a phone, pinch-zoom the Mandelbrot set into seahorse valley) and "User Story 6 - Download a video (Priority: P3)" (record the canvas while it animates or while the user pans/zooms, then download the clip; independent test: record 5 s of boids and play the file); add **FR-028** (pinch and on-screen zoom controls for Mandelbrot/Julia, zoom kept centered on the pinch midpoint) and **FR-029** (record the canvas to a video file, max 60 s, MP4 where the browser can encode it, WebM otherwise; the record control is hidden where the browser can't record); remove "video/GIF recording" from the out-of-scope line in Assumptions (GIF stays out of scope)
+- [X] T088 [P] Update `specs/003-visualization-studio/contracts/visualization-module.md`: add `"pinch"` to the `pointer(event)` types with a `scale` field (ratio since the previous pinch event, > 1 zooms in, around `x`,`y` = midpoint in canvas device pixels), add `ctrlKey` to wheel events, and state that the shell normalizes `deltaY` to pixels (`deltaMode` 1 → ×16, 2 → ×canvas height)
+- [X] T089 [P] Add "## 5. Video download" to `specs/003-visualization-studio/contracts/persistence-formats.md`: `canvas.captureStream(30)` recorded with `MediaRecorder` at 8 Mbit/s; MIME preference order `video/mp4;codecs=avc1`, `video/mp4`, `video/webm;codecs=vp9`, `video/webm;codecs=vp8`, `video/webm` (first that `MediaRecorder.isTypeSupported` accepts); file name `<vizId>-<yyyymmdd-hhmmss>.mp4` or `.webm`; recording stops at 60 s, when the user leaves the visualization, or when the tab is hidden
+- [X] T090 [P] Add manual checks 23–26 to the table in `specs/003-visualization-studio/quickstart.md`: 23 pinch-zoom Mandelbrot on a phone (zooms around the fingers, page does not scroll or zoom); 24 trackpad pinch in Safari and in Chrome (zooms at a speed similar to the mouse wheel); 25 zoom buttons and Reset view on Mandelbrot and Julia; 26 record 5 s of boids, stop, and play the downloaded file (FR-029)
+- [X] T091 [P] Extend `web-client/src/__tests__/studio/browserStubs.js`: a `MediaRecorder` fake (static `isTypeSupported(type)` driven by a configurable list; `start(timeslice)`, `stop()` that fires `dataavailable` with a small `Blob` then `stop`; `state`), `HTMLCanvasElement.prototype.captureStream` returning a fake stream with `getTracks()` → `[{ stop() }]`, and `installMediaRecorder({ types })` / `removeMediaRecorder()` helpers so tests can switch recording support on and off
+
+**Checkpoint**: Design documents describe both stories; test stubs ready
+
+---
+
+## Phase 9: User Story 5 - Zoom fractals on any device (Priority: P1)
+
+**Goal**: Mandelbrot and Julia zoom with pinch (touch and trackpad, every supported browser) and with on-screen buttons, not only with a mouse wheel, double-click and the keyboard.
+
+**Independent Test**: On a phone (or Chrome DevTools device mode with touch emulation), pinch on `/studio/mandelbrot`: the picture zooms around the fingers and the zoom stat under the canvas rises. On a Mac in Safari, trackpad pinch zooms. The +, − and Reset view buttons work with mouse and keyboard (quickstart checks 23–25).
+
+### Tests for User Story 5
+
+- [X] T092 [P] [US5] Add `web-client/src/__tests__/studio/escapeView.test.js`: create a Mandelbrot instance with the canvas stub (`installCanvasStub`, `createModuleContext` with `onView` spy) and assert that (1) `pointer({type:"pinch", x, y, scale: 2})` doubles `view.zoom` and leaves the complex-plane point under (`x`,`y`) unchanged (within 1e-12); (2) `scale` < 1 zooms out but never below 0.5; (3) `wheel` with `ctrlKey: true, deltaY: -10` zooms in by at least the same factor as `ctrlKey: false, deltaY: -100`; (4) pinching past `MAX_ZOOM` clamps to 1e13 and calls `reportNotice` once; (5) a second `down` while a drag is active cancels the drag without panning
+- [X] T093 [P] [US5] Extend `web-client/src/__tests__/studio/studio.test.jsx` (US5 part): on `/studio/mandelbrot`, two `pointerdown` events with different `pointerId`s followed by `pointermove` events that move them apart call the instance with a `pinch` event whose `scale` > 1 (spy on the module instance's `pointer`); a `wheel` event with `deltaMode: 1, deltaY: 3` reaches the module as `deltaY: 48`; the "Zoom in", "Zoom out" and "Reset view" buttons render only for modules with `defaultView` (present on Mandelbrot and Julia, absent on Ulam spiral) and "Reset view" restores `module.defaultView`
+
+### Implementation for User Story 5
+
+- [X] T094 [US5] Add multi-touch pinch to `web-client/src/studio/components/Viewer.jsx`: keep a `Map` of active pointers (`pointerId` → canvas-pixel position via `toCanvas`) updated in `onPointerDown`/`onPointerMove`/`onPointerUp`/`onPointerCancel`/`onPointerLeave`; when a second pointer goes down, send `{type: "up", ...}` for the first pointer with a `cancelDrag: true` flag so the module drops its drag; while exactly two pointers are down, on each move send `{type: "pinch", x, y, scale}` where `x`,`y` is the midpoint and `scale` is the current distance divided by the previous distance (skip when the previous distance is < 1 px); single-pointer behaviour stays as it is
+- [X] T095 [US5] Handle trackpad pinch in `web-client/src/studio/components/Viewer.jsx`: in the existing non-passive `wheel` listener, normalize `deltaY` to pixels (`deltaMode` 1 → ×16, 2 → ×`canvas.height`) and pass `ctrlKey: e.ctrlKey`; add non-passive `gesturestart`/`gesturechange`/`gestureend` listeners (Safari) on the canvas in the same effect that call `e.preventDefault()` and send `{type: "pinch", x, y, scale: e.scale / lastScale}` with `x`,`y` from `toCanvas(e)` (reset `lastScale` to 1 on `gesturestart`); remove all listeners in the effect cleanup
+- [X] T096 [US5] Handle the new events in `web-client/src/studio/visualizations/mandelbrot/escapeView.js` `pointer(ev)`: `"pinch"` → `zoomAt(ev.x, ev.y, ev.scale)`, coalescing renders with `requestAnimationFrame` so a burst of pinch events starts one render per frame (keep `view` updated on every event; render the latest view once per frame; `setTimeout(…, 0)` fallback where `requestAnimationFrame` is missing); `"wheel"` with `ev.ctrlKey` → factor `Math.exp(-ev.deltaY * 0.01)`, otherwise the existing `Math.exp(-ev.deltaY * 0.0015)`; `"up"` with `ev.cancelDrag` → `drag = null` without panning; `"leave"` during a drag → finish the drag like `"up"`; report the zoom-limit notice once per crossing, not on every event at the limit
+- [X] T097 [US5] Stop restarting workers on every zoom event: in `web-client/src/studio/core/workerPool.js` `cancel()`, only terminate and replace a busy worker when the job has been running for more than 100 ms (record `job.startedAt` in `pump()`); otherwise mark the job cancelled, let it finish, and drop its result in `onmessage` (if `jobs.get(id)` is missing, free the slot and call `pump()`); keep the in-thread path unchanged. Update `web-client/src/__tests__/studio/core/workerPool.test.js` only if its expectations depend on immediate termination
+- [X] T098 [US5] Add zoom controls to `web-client/src/studio/components/Viewer.jsx` for modules that declare `defaultView`: an overlay group in the top-right corner of `.canvas-wrap` with three `<button type="button">`s, "Zoom in" (+), "Zoom out" (−) and "Reset view" (⟲), each with an `aria-label`; + and − call `send("key", null, { key: "+" })` / `{ key: "-" }`; Reset view calls `restartWith({ ...configRef.current, view: { ...module.defaultView } })`; style them in `web-client/src/studio/studio.css` (`.zoom-controls`, 36 px square hit targets, ≥ 44 px on `(pointer: coarse)`, visible focus ring, works in light and dark themes)
+- [X] T099 [US5] Update the `howItWorks` text in `web-client/src/studio/visualizations/mandelbrot/index.js` and `web-client/src/studio/visualizations/julia/index.js` to mention pinch and the zoom buttons (keep it over 40 characters, as the contract test requires)
+
+**Checkpoint**: Pinch, trackpad and buttons zoom both fractals; `npm test` green
+
+---
+
+## Phase 10: User Story 6 - Download a video (Priority: P3)
+
+**Goal**: A "Record video" control records the canvas (animation or the user panning/zooming) and downloads the clip when stopped.
+
+**Independent Test**: Open boids, press Record video, wait 5 s, press Stop: a `boids-<yyyymmdd-hhmmss>.mp4` (Safari, recent Chrome) or `.webm` (Firefox) downloads and plays. In a browser without `MediaRecorder` the control is not shown (quickstart check 26).
+
+### Tests for User Story 6
+
+- [X] T100 [P] [US6] Add `web-client/src/__tests__/studio/core/videoRecorder.test.js` using the T091 stubs: `pickMimeType()` returns the first supported entry in the preference order from contracts/persistence-formats.md §5 and `null` when none is supported; `canRecordVideo(canvas)` is false without `MediaRecorder` or `captureStream`; `startRecording` → `stop()` resolves to `{ blob, ext, mimeType }` with `ext` `"mp4"` for an MP4 type and `"webm"` otherwise; recording auto-stops after `maxSeconds` (fake timers); `cancel()` stops the stream tracks and resolves to `null`; `videoFilename("boids", "webm", new Date(2026, 10, 11, 9, 5, 7))` → `"boids-20261111-090507.webm"`
+- [X] T101 [P] [US6] Extend `web-client/src/__tests__/studio/studio.test.jsx` (US6 part): with recording supported, the share menu shows "Record video"; clicking it changes the label to "Stop recording" with an elapsed time, and on an animated module it starts playback; clicking Stop triggers a download whose name matches `/^boids-\d{8}-\d{6}\.(mp4|webm)$/`; leaving the visualization while recording stops the recorder without a download; with `removeMediaRecorder()`, the button is absent; for a module that is neither `animated` nor `interactive` (e.g. Phyllotaxis; Ulam spiral is interactive because of its hover readout) the button is absent
+
+### Implementation for User Story 6
+
+- [X] T102 [US6] Export the existing `stamp()` helper from `web-client/src/studio/core/exportFile.js` (rename to `fileStamp`, keep `pngFilename` using it) and add a shared `downloadBlob(blob, filename)` that `downloadPng` and `exportSaved` reuse (object URL → temporary `<a download>` → click → `URL.revokeObjectURL` on the next tick)
+- [X] T103 [US6] Create `web-client/src/studio/core/videoRecorder.js` per contracts/persistence-formats.md §5: `canRecordVideo(canvas)`, `pickMimeType()`, `videoFilename(vizId, ext, date)` (uses `fileStamp` from T102), and `startRecording(canvas, { fps = 30, maxSeconds = 60, bitsPerSecond = 8_000_000, onTick })` → `{ stop(): Promise<{blob, ext, mimeType} | null>, cancel(): Promise<null> }`; collect chunks with `recorder.start(1000)`, call `onTick(elapsedSeconds)` once a second, auto-stop at `maxSeconds`, stop every stream track when finished; strip codecs from the Blob type (`video/mp4`, `video/webm`)
+- [X] T104 [US6] Add the record control to `web-client/src/studio/components/ShareMenu.jsx`: new props `recordable` (boolean) and `onRecordStart()`; render "Record video" only when `recordable && canRecordVideo(canvasRef.current)`; while recording show "Stop recording · m:ss" with `aria-pressed="true"` and a red dot (`.rec-dot` in `web-client/src/studio/studio.css`, static, no blinking when reduced motion is on); on stop call `downloadBlob(result.blob, videoFilename(vizId, result.ext))`; when 60 s is reached, stop and download automatically and show the notice "Recording stopped at the 60-second limit."; on unmount call `cancel()` (no download)
+- [X] T105 [US6] Wire recording into `web-client/src/studio/components/Viewer.jsx`: pass `recordable={module.animated || module.interactive}` and `onRecordStart={() => loopRef.current?.play()}` (only for animated modules; this explicit user action overrides the reduced-motion start-paused setting); pass a `stopSignal` prop that changes when the document becomes hidden (reuse the existing `visibilitychange` handling) and in `teardown`, so ShareMenu cancels an active recording when the tab is hidden or the visualization changes — Done differently: ShareMenu takes the existing `active` prop and listens for `visibilitychange` itself, and the Viewer is remounted per visualization, so unmounting cancels the recording; no separate `stopSignal` prop was needed
+
+**Checkpoint**: Video download works in Chrome, Firefox and Safari; hidden where unsupported; `npm test` green
+
+---
+
+## Phase 11: Polish for the second increment
+
+- [X] T106 [P] Update `README.md` and `docs/adding-a-visualization.md`: mention pinch and zoom buttons for interactive fractals, the `pinch` pointer event for module authors, and the Record video control
+- [ ] T107 Run `npm test` and `npm run build` in `web-client/`, then do quickstart checks 23–26 on a real phone (or DevTools touch emulation), Safari on macOS and Chrome on desktop, and note the results under each task above — **Partly done (2026-11-11):** `npm test` (319 tests) and `npm run build` pass. Checked in headless Chrome: touch pinch on a 390 px mobile viewport zooms 1× → 5.00× around the fingers with no page scroll or page zoom (check 23); Ctrl + wheel (Chrome trackpad pinch) zooms to 4.95× (check 24, Chrome); Zoom in / Zoom out / Reset view work (check 25); a 3 s boids recording downloaded as `boids-<stamp>.mp4`, H.264, 832×576, 104 frames (check 26, Chrome). Not checked: Safari trackpad pinch (`gesture*` events) and Firefox recording (WebM), which need those browsers, and a real phone.
+
+---
+
 ## Implementation notes
 
 - Analysis findings C1, C2, I1, I2 and A1 were fixed while building: Ulam spiral hover readout, Lorenz start-point knobs (`x0`, `y0`, `z0`), presets may carry `input`, modules can call `ctx.setValues`, and the chaos game has a "Center is a target too" toggle for the Vicsek preset.
@@ -201,6 +270,10 @@ description: "Task list for the Visualization Studio"
 - **US3 (Phase 5)**: after US1's shell (T019, T022). Independent of US2 (saves whatever config the viewer holds; with only US1 that is defaults plus view)
 - **US4 (Phase 6)**: after US1's shell; T079 needs US3's `MyVisualizations.jsx`; the rest is independent of US2/US3
 - **Polish (Phase 7)**: after the stories you intend to ship
+- **Scope update (Phase 8)**: none; T087 first so the spec numbers (FR-028, FR-029) exist when the other docs reference them
+- **US5 (Phase 9)**: after T088 (event contract); independent of US6
+- **US6 (Phase 10)**: after T089 and T091; independent of US5
+- **Polish (Phase 11)**: after US5 and US6
 
 ### Within phases
 
@@ -209,6 +282,8 @@ description: "Task list for the Visualization Studio"
 - T025–T047 are independent of each other and of the shell (they only need Phase 2); T031 needs T030's kernel
 - T049 → T050 → T053; T054 before T055–T063
 - T067 → T071; T075 → T076, T078
+- US5: T092, T093 first (they fail until implemented); T094 → T095 (same file); T096 after T094; T097 independent; T098 after T095 (same file); T099 any time
+- US6: T100, T101 first; T102 → T103 → T104 → T105
 
 ### Story completion order
 
@@ -217,6 +292,10 @@ Setup → Foundational → US1 (MVP) → US2 ─┐
                               │         ├→ Polish
                               ├→ US3 ───┤
                               └→ US4 ───┘   (T079 waits for US3)
+
+Second increment:
+Scope update (Phase 8) ─┬→ US5 zoom fix (P1) ─┐
+                        └→ US6 video (P3) ────┴→ Polish (Phase 11)
 ```
 
 ## Parallel Execution Examples
@@ -240,6 +319,14 @@ Algorithms:      T046 T047
 
 **US3/US4**: T069 and T070 together; T077 and T078 together.
 
+**Phase 8**: T088 · T089 · T090 · T091 together after T087.
+
+**US5 and US6 side by side** (different files until T098/T105 both touch `Viewer.jsx`, so finish one of those before the other):
+```text
+US5: T092 escapeView.test.js · T093 studio.test.jsx · T096 escapeView.js · T097 workerPool.js
+US6: T100 videoRecorder.test.js · T102 exportFile.js → T103 videoRecorder.js
+```
+
 ## Implementation Strategy
 
 ### MVP first
@@ -257,3 +344,10 @@ Algorithms:      T046 T047
 5. Polish.
 
 Each story leaves the playground untouched and `npm test` green.
+
+### Second increment
+
+1. Phase 8 (docs and stubs).
+2. US5 first: it fixes broken interaction on touch and trackpad devices (P1). The smallest useful slice is T098 (zoom buttons), which works on every device on its own.
+3. US6: video download.
+4. Phase 11.

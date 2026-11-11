@@ -65,3 +65,7 @@ Run these in Chrome and in one of Firefox or Safari, plus one phone-width window
 | 20 | Turn on the OS reduced-motion setting, open boids | Starts paused | FR-027 |
 | 21 | Start boids, switch to another tab for 10 s, come back; then switch visualization | Paused while hidden; processor use drops when you leave the visualization | FR-024 |
 | 22 | Private window with storage blocked: try to save | Clear message, export offered | Edge cases |
+| 23 | Pinch-zoom Mandelbrot on a phone (or DevTools touch emulation) | Zooms around the fingers; the page does not scroll or zoom | FR-028 |
+| 24 | Trackpad pinch on Mandelbrot in Safari and in Chrome | Zooms at a speed similar to the mouse wheel | FR-028 |
+| 25 | Zoom in, Zoom out, Reset view buttons on Mandelbrot and Julia (mouse and keyboard) | Zooms around the center; Reset returns to the default view | FR-028 |
+| 26 | Record 5 s of boids, stop, play the downloaded file | File plays; named `boids-<yyyymmdd-hhmmss>.mp4` or `.webm` | FR-029 |

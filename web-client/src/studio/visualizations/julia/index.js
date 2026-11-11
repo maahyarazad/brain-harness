@@ -7,7 +7,7 @@ export default {
   id: "julia",
   name: "Julia set",
   howItWorks:
-    "Pick a fixed complex number c. For each starting point z, repeat z → z² + c and color it by how fast it escapes. Every c gives a different Julia set: c values inside the Mandelbrot set give connected shapes, those outside give dust. Drag to pan and scroll to zoom.",
+    "Pick a fixed complex number c. For each starting point z, repeat z → z² + c and color it by how fast it escapes. Every c gives a different Julia set: c values inside the Mandelbrot set give connected shapes, those outside give dust. Drag to pan; scroll, pinch, double-click or use the + / − buttons to zoom; ⟲ resets the view.",
   animated: false,
   random: false,
   interactive: true,

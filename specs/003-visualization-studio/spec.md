@@ -85,6 +85,38 @@ A user copies a link that opens the studio on the same visualization with the sa
 
 ---
 
+### User Story 5 - Zoom fractals on any device (Priority: P1)
+
+A user on a phone, tablet, or laptop trackpad zooms into the Mandelbrot or Julia set with a pinch, or with visible zoom buttons, not only with a mouse wheel or keyboard.
+
+**Why this priority**: Zooming is the main way to explore these fractals; without pinch or buttons, touch and trackpad users can't explore them at all.
+
+**Independent Test**: On a phone, pinch-zoom the Mandelbrot set into seahorse valley; the picture zooms around the fingers and the page itself does not scroll or zoom.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Mandelbrot or Julia set on a touch screen, **When** the user pinches, **Then** the view zooms around the midpoint of the fingers.
+2. **Given** a laptop trackpad in any supported browser, **When** the user pinches over the canvas, **Then** the view zooms at a speed similar to the mouse wheel.
+3. **Given** the Mandelbrot or Julia set, **When** the user presses Zoom in, Zoom out, or Reset view, **Then** the view zooms around the center or returns to the default view.
+
+---
+
+### User Story 6 - Download a video (Priority: P3)
+
+A user records the canvas while a visualization animates, or while they pan and zoom, and downloads the clip.
+
+**Why this priority**: Nice for sharing motion, but images and links already cover sharing.
+
+**Independent Test**: Record 5 seconds of boids, stop, and play the downloaded file.
+
+**Acceptance Scenarios**:
+
+1. **Given** an animated or interactive visualization in a browser that can record, **When** the user starts and stops a recording, **Then** a video file of the canvas downloads.
+2. **Given** a recording that reaches 60 seconds, **Then** it stops and downloads on its own, with a message.
+3. **Given** a browser that can't record video, **Then** the record control is not shown.
+
+---
+
 ### Edge Cases
 
 - A share link or imported file names an unknown algorithm or has missing or invalid values: the studio opens what it can, falls back to defaults for bad values, and tells the user which values were replaced.
@@ -140,6 +172,7 @@ A user copies a link that opens the studio on the same visualization with the sa
 - **FR-020**: Users MUST be able to copy a link that encodes the algorithm and its settings, so opening it recreates the visualization.
 - **FR-021**: Users MUST be able to download the current frame as an image.
 - **FR-022**: Users MUST be able to export a saved visualization to a settings file and import such a file; invalid values in a link or file MUST fall back to defaults with a message listing what was replaced.
+- **FR-029**: Users MUST be able to record the canvas of an animated or interactive visualization to a video file (at most 60 s; MP4 where the browser can encode it, WebM otherwise) and download it; the record control MUST be hidden where the browser can't record.
 
 **Responsiveness and access**
 
@@ -148,6 +181,7 @@ A user copies a link that opens the studio on the same visualization with the sa
 - **FR-025**: Every knob and control MUST be usable with the keyboard alone and have an accessible name.
 - **FR-026**: The studio MUST work on desktop and phone-width screens; on narrow screens the knobs panel MAY collapse below or beside the canvas.
 - **FR-027**: The studio MUST offer a reduced-motion setting, on by default when the operating system asks for reduced motion, that starts animations paused.
+- **FR-028**: Mandelbrot and Julia MUST zoom with a two-finger pinch on touch screens and a trackpad pinch in every supported browser, keeping the zoom centered on the pinch midpoint, and MUST show on-screen Zoom in, Zoom out, and Reset view controls.
 
 ### Visualization Catalog and Required Knobs
 
@@ -232,4 +266,4 @@ V06 and V07, and V11 and V12, appear as separate catalog entries but may share a
 - Saved visualizations are kept in the user's browser only. There are no accounts, no server storage, and no syncing between devices; export/import and share links cover moving them.
 - All computation happens in the browser; the studio adds no server endpoints and makes no calls to Claude.
 - "Typical laptop" means a machine from the last 5 years running a current Chrome, Edge, Firefox, or Safari.
-- Out of scope for this version: video/GIF recording, a gallery shared between users, sound, and 3-D views other than the rotatable Lorenz attractor.
+- Out of scope for this version: GIF recording, a gallery shared between users, sound, and 3-D views other than the rotatable Lorenz attractor.

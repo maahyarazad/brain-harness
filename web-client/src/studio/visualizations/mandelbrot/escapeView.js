@@ -27,6 +27,26 @@ export function createEscapeInstance(canvas, config, ctx, { getC, span = 3, onSh
   let view = { ...config.view };
   let tasks = [];
   let drag = null;
+  let atLimit = view.zoom >= MAX_ZOOM;
+  let frame = null;
+
+  const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
+  const caf = typeof cancelAnimationFrame === "function" ? cancelAnimationFrame : clearTimeout;
+
+  // Pinch and trackpad events come in bursts: keep the view current on every
+  // event but start at most one render per animation frame.
+  function scheduleRender() {
+    if (frame !== null) return;
+    frame = raf(() => {
+      frame = null;
+      render();
+    });
+  }
+
+  function cancelFrame() {
+    if (frame !== null) caf(frame);
+    frame = null;
+  }
 
   function cancelAll() {
     tasks.forEach((t) => t.cancel());
@@ -91,19 +111,35 @@ export function createEscapeInstance(canvas, config, ctx, { getC, span = 3, onSh
     view = v;
     if (view.zoom >= MAX_ZOOM) {
       view.zoom = MAX_ZOOM;
-      ctx.reportNotice("Zoom limit reached: past this point the numbers lose precision.");
+      if (!atLimit) ctx.reportNotice("Zoom limit reached: past this point the numbers lose precision.");
+      atLimit = true;
+    } else {
+      atLimit = false;
     }
     if (!silent) ctx.setView({ ...view });
   }
 
-  function zoomAt(px, py, factor) {
+  function zoomAt(px, py, factor, { deferRender = false } = {}) {
     const { w, h, dx } = geometry();
     const wx = view.cx + (px - w / 2) * dx;
     const wy = view.cy - (py - h / 2) * dx;
     const zoom = Math.max(0.5, Math.min(MAX_ZOOM, view.zoom * factor));
     const ndx = span / zoom / Math.min(w, h);
     setView({ cx: wx - (px - w / 2) * ndx, cy: wy + (py - h / 2) * ndx, zoom });
-    render();
+    if (deferRender) scheduleRender();
+    else {
+      cancelFrame();
+      render();
+    }
+  }
+
+  function finishDrag(ev) {
+    const { dx } = geometry();
+    if (drag.moved) {
+      setView({ cx: drag.cx - (ev.x - drag.x) * dx, cy: drag.cy + (ev.y - drag.y) * dx, zoom: view.zoom });
+      render();
+    }
+    drag = null;
   }
 
   render();
@@ -111,17 +147,29 @@ export function createEscapeInstance(canvas, config, ctx, { getC, span = 3, onSh
   return {
     update(c) {
       cfg = c;
-      if (c.view) view = { ...c.view };
+      if (c.view) {
+        view = { ...c.view };
+        atLimit = view.zoom >= MAX_ZOOM;
+      }
+      cancelFrame();
       render();
     },
     resize: render,
-    destroy: cancelAll,
+    destroy() {
+      cancelFrame();
+      cancelAll();
+    },
     pointer(ev) {
       const { dx } = geometry();
       if (ev.type === "down" && ev.button === 0) {
         if (ev.shiftKey && onShiftClick) {
           const { w, h } = geometry();
           onShiftClick(view.cx + (ev.x - w / 2) * dx, view.cy - (ev.y - h / 2) * dx);
+          return;
+        }
+        if (drag) {
+          // A second pointer: this is the start of a pinch, not a drag.
+          drag = null;
           return;
         }
         drag = { x: ev.x, y: ev.y, cx: view.cx, cy: view.cy, moved: false };
@@ -133,15 +181,21 @@ export function createEscapeInstance(canvas, config, ctx, { getC, span = 3, onSh
         drag.lastDx = ddx;
         drag.lastDy = ddy;
       } else if (ev.type === "up" && drag) {
-        if (drag.moved) {
-          setView({ cx: drag.cx - (ev.x - drag.x) * dx, cy: drag.cy + (ev.y - drag.y) * dx, zoom: view.zoom });
-          render();
-        }
-        drag = null;
+        if (ev.cancelDrag) {
+          // A second finger went down: drop the drag and redraw where we were.
+          if (drag.moved) render();
+          drag = null;
+        } else finishDrag(ev);
+      } else if (ev.type === "leave" && drag) {
+        finishDrag(ev);
       } else if (ev.type === "dblclick") {
         zoomAt(ev.x, ev.y, 2);
+      } else if (ev.type === "pinch") {
+        if (Number.isFinite(ev.scale) && ev.scale > 0) zoomAt(ev.x, ev.y, ev.scale, { deferRender: true });
       } else if (ev.type === "wheel") {
-        zoomAt(ev.x, ev.y, Math.exp(-ev.deltaY * 0.0015));
+        // Trackpad pinch arrives as ctrl + wheel with small deltas: zoom faster.
+        const rate = ev.ctrlKey ? 0.02 : 0.0015;
+        zoomAt(ev.x, ev.y, Math.exp(-ev.deltaY * rate), { deferRender: true });
       } else if (ev.type === "key") {
         const { w, h } = geometry();
         const step = 0.1 * Math.min(w, h) * dx;
