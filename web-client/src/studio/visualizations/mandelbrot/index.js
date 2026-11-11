@@ -1,0 +1,32 @@
+import { createEscapeInstance, validateView } from "./escapeView.js";
+import { paletteKnob } from "../../core/palettes.js";
+
+const DEFAULT_VIEW = { cx: -0.6, cy: 0, zoom: 1 };
+
+export default {
+  id: "mandelbrot",
+  name: "Mandelbrot set",
+  howItWorks:
+    "For each point c of the plane, start at z = 0 and repeat z → z² + c. If z stays small forever, c is in the set (drawn dark). Otherwise the point is colored by how quickly z escapes. Drag to pan, scroll or double-click to zoom, use + / − and the arrow keys from the keyboard, and Shift+click a point to open the Julia set for that c.",
+  animated: false,
+  random: false,
+  interactive: true,
+  defaultView: DEFAULT_VIEW,
+  validateView: (v) => validateView(v, DEFAULT_VIEW),
+  knobs: [
+    { key: "iterations", label: "Iteration limit", type: "range", min: 50, max: 5000, step: 1, default: 300, scale: "log", live: false },
+    paletteKnob("palette", "twilight"),
+    { key: "smooth", label: "Smooth coloring", type: "toggle", default: true },
+  ],
+  presets: [],
+  create(canvas, config, ctx) {
+    return createEscapeInstance(canvas, config, ctx, {
+      getC: () => null,
+      span: 3,
+      onShiftClick: (re, im) =>
+        ctx.openVisualization?.("julia", {
+          values: { cRe: Math.round(re * 10000) / 10000, cIm: Math.round(im * 10000) / 10000 },
+        }),
+    });
+  },
+};
