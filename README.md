@@ -2,6 +2,8 @@
 
 Brain Harness is an MCP (Model Context Protocol) server built on Fastify, with a small web **playground** for trying it out. In the playground you can type or speak a prompt, watch Claude decide which of the server's tools to call, and run any tool or prompt template directly.
 
+The web client also has a **Visualization Studio** at `/studio`: 23 generative and algorithmic visualizations (Mandelbrot and Julia sets, L-systems, the Game of Life, reaction–diffusion, boids, sorting and maze algorithms, and more). Each one has knobs to tune it, presets, and play/pause controls, and you can save your own versions, share them as links, or download them as images or videos. The Mandelbrot and Julia sets zoom with the mouse wheel, a pinch (touch screen or trackpad), or on-screen zoom buttons. It runs entirely in the browser and doesn't need the server. See [`specs/003-visualization-studio/quickstart.md`](specs/003-visualization-studio/quickstart.md) and [`docs/adding-a-visualization.md`](docs/adding-a-visualization.md).
+
 The longer-term goal is a versatile MCP server that connects to services like Slack and Telegram. The playground is where those integrations get built and tested.
 
 ## Folders
@@ -9,11 +11,11 @@ The longer-term goal is a versatile MCP server that connects to services like Sl
 | Folder | What's in it |
 |---|---|
 | `server/` | The MCP server (Fastify + MCP SDK + Anthropic SDK). One file per tool in `server/src/mcp/tools/`. |
-| `web-client/` | The playground (Vite + React). |
-| `docs/` | Guides: [`docs/adding-a-tool.md`](docs/adding-a-tool.md), [`docs/deploy.md`](docs/deploy.md). |
+| `web-client/` | The playground and the Visualization Studio (Vite + React). Studio code is in `web-client/src/studio/`. |
+| `docs/` | Guides: [`docs/adding-a-tool.md`](docs/adding-a-tool.md), [`docs/adding-a-visualization.md`](docs/adding-a-visualization.md), [`docs/deploy.md`](docs/deploy.md). |
 | `deploy/` | EC2 setup script, systemd service and nginx config. |
 | `.github/workflows/` | GitHub Actions that deploy the server and the web client to EC2. |
-| `specs/` | The feature spec, plan and tasks this was built from. |
+| `specs/` | The feature specs, plans and tasks this was built from. |
 
 ## Run it
 
@@ -29,7 +31,7 @@ npm run dev               # http://127.0.0.1:3000
 # Terminal 2: playground
 cd web-client
 npm install
-npm run dev               # open http://localhost:5173
+npm run dev               # open http://localhost:5173 (studio: /studio)
 ```
 
 **The API key lives only in `server/.env`.** That file is git-ignored, and the browser never sees the key. The playground talks to the server through Vite's dev proxy.
