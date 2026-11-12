@@ -34,6 +34,7 @@ export default {
     { id: "sharp", name: "Sharp star (150 circles)", values: { shape: "star", circles: 150 } },
     { id: "square", name: "Square (20 circles)", values: { shape: "square", circles: 20 } },
   ],
+  sweep: { periodMs: 30000, targets: [{ key: "circles", mode: "log", min: 2, max: 120 }] },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

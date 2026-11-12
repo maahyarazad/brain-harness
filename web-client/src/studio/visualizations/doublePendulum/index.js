@@ -32,6 +32,7 @@ export default {
     { id: "flip", name: "Upside down", values: { theta1: 179, theta2: 179.5 } },
     { id: "heavy", name: "Heavy top", values: { m1: 6, m2: 1, theta1: 90, theta2: 90 } },
   ],
+  sweep: { periodMs: 30000, targets: [{ key: "gravity", mode: "wave", min: 4, max: 16 }] },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

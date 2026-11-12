@@ -3,6 +3,9 @@ import { gridImage, fitAspect, BG, BG_RGB } from "../_shared/instance.js";
 import { clear } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
 
+// Steps per run in an animated sweep: enough for RL's "highway" to appear.
+const RUN_STEPS = 12000;
+
 export default {
   id: "langtons-ant",
   name: "Langton's ant",
@@ -28,6 +31,7 @@ export default {
     { id: "lrrrrrllr", name: "LRRRRRLLR (square)", values: { rule: "LRRRRRLLR" } },
     { id: "crowd", name: "Four ants", values: { rule: "RL", ants: 4 } },
   ],
+  sweep: { kind: "run", targets: [{ key: "rule", mode: "steps", list: ["RL", "RLR", "LLRR", "RLLR", "LRRRRRLLR"] }] },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
@@ -86,6 +90,8 @@ export default {
         antStep(grid, N, N, ants, turns);
         steps++;
       },
+      /** An animated sweep shows each rule for RUN_STEPS steps, then the next. */
+      isDone: () => steps >= RUN_STEPS,
       render,
       reset() {
         init();

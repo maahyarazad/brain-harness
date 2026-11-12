@@ -46,6 +46,8 @@ export default {
     { id: "insertion-nearly", name: "Insertion on nearly sorted", values: { algorithm: "insertion", order: "nearly-sorted", size: 200 } },
     { id: "heap-reversed", name: "Heap sort, reversed", values: { algorithm: "heap", order: "reversed", size: 200 } },
   ],
+  // Each algorithm runs to the end, stays for a moment, then the next one starts.
+  sweep: { kind: "run", targets: [{ key: "algorithm", mode: "steps", list: ["bubble", "insertion", "selection", "quick", "merge", "heap"] }] },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
@@ -110,6 +112,8 @@ export default {
           view[last.i] = last.value;
         }
       },
+      /** The array is sorted: an animated sweep can start the next algorithm. */
+      isDone: () => done,
       render,
       reset() {
         init();

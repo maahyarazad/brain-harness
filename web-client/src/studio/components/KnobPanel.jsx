@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import RangeKnob from "./knobs/RangeKnob.jsx";
 import ChoiceKnob from "./knobs/ChoiceKnob.jsx";
 import ToggleKnob from "./knobs/ToggleKnob.jsx";
@@ -6,7 +7,7 @@ import PaletteKnob from "./knobs/PaletteKnob.jsx";
 
 const COMPONENTS = { range: RangeKnob, choice: ChoiceKnob, toggle: ToggleKnob, text: TextKnob, palette: PaletteKnob };
 
-export default function KnobPanel({ module, values, onChange, onReset, children }) {
+export default function KnobPanel({ module, values, onChange, onReset, sweeping = new Set(), children }) {
   const visible = module.knobs.filter((k) => !k.when || k.when(values));
   const groups = [];
   for (const k of visible) {
@@ -28,7 +29,18 @@ export default function KnobPanel({ module, values, onChange, onReset, children 
           {g.name && <legend>{g.name}</legend>}
           {g.knobs.map((k) => {
             const C = COMPONENTS[k.type];
-            return C ? <C key={k.key} knob={k} value={values[k.key]} onChange={(v) => onChange(k.key, v)} /> : null;
+            if (!C) return null;
+            const knob = <C knob={k} value={values[k.key]} onChange={(v) => onChange(k.key, v)} describedBy={sweeping.has(k.key) ? `sweep-badge-${k.key}` : undefined} />;
+            if (!sweeping.has(k.key)) return <Fragment key={k.key}>{knob}</Fragment>;
+            // The sweep is moving this setting: say so next to it (FR-013).
+            return (
+              <div key={k.key} className="sweeping">
+                <span className="sweep-badge" id={`sweep-badge-${k.key}`}>
+                  ⟳ sweeping
+                </span>
+                {knob}
+              </div>
+            );
           })}
         </fieldset>
       ))}

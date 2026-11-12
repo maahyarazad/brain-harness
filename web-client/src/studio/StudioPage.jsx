@@ -119,7 +119,23 @@ export default function StudioPage({ active }) {
   } else {
     body =
       view === "mine" ? (
-        <MyVisualizations onOpen={(id) => navigate(`/studio/saved/${id}`)} showEmpty />
+        <>
+          <div className="viewer-toolbar">
+            <a
+              className="btn"
+              href="/studio"
+              aria-label="Back to catalog"
+              onClick={(e) => {
+                if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                e.preventDefault();
+                navigate("/studio");
+              }}
+            >
+              ← Catalog
+            </a>
+          </div>
+          <MyVisualizations onOpen={(id) => navigate(`/studio/saved/${id}`)} showEmpty />
+        </>
       ) : (
         <CatalogGrid
           query={query}

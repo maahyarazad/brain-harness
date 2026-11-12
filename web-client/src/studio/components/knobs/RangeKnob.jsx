@@ -18,7 +18,7 @@ function fromPos(knob, p) {
   return validateValue(knob, p).value;
 }
 
-export default function RangeKnob({ knob, value, onChange }) {
+export default function RangeKnob({ knob, value, onChange, describedBy }) {
   const id = knobId(knob.key);
   const live = knob.live !== false;
   const [draft, setDraft] = useState(value);
@@ -108,7 +108,7 @@ export default function RangeKnob({ knob, value, onChange }) {
         step={isLog(knob) ? 1 : knob.step ?? 1}
         value={toPos(knob, draft)}
         aria-valuetext={formatValue(knob, draft)}
-        aria-describedby={knob.help ? `${id}-help` : undefined}
+        aria-describedby={[knob.help && `${id}-help`, describedBy].filter(Boolean).join(" ") || undefined}
         onChange={onSlider}
         onPointerUp={onSliderRelease}
         onKeyUp={onSliderRelease}

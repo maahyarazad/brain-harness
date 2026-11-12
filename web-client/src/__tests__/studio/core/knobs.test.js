@@ -50,3 +50,25 @@ test("presets and diffs", () => {
   expect(diffFromDefaults(mod, p.values)).toEqual({ n: 400 });
   expect(applyPreset(mod, "missing")).toBeNull();
 });
+
+describe("applyPreset with a view", () => {
+  const mod = {
+    id: "v",
+    knobs: [{ key: "n", label: "N", type: "range", min: 0, max: 10, step: 1, default: 1 }],
+    defaultView: { cx: 0, cy: 0, zoom: 1 },
+    presets: [
+      { id: "plain", name: "Plain", values: { n: 2 } },
+      { id: "zoomed", name: "Zoomed", values: { n: 3 }, view: { cx: -0.7, cy: 0.1, zoom: 1 } },
+    ],
+  };
+
+  test("returns the preset's view, or null when it has none", () => {
+    expect(applyPreset(mod, "zoomed").view).toEqual({ cx: -0.7, cy: 0.1, zoom: 1 });
+    expect(applyPreset(mod, "plain").view).toBeNull();
+  });
+
+  test("returns a copy, not the preset's own object", () => {
+    applyPreset(mod, "zoomed").view.zoom = 99;
+    expect(mod.presets[1].view.zoom).toBe(1);
+  });
+});

@@ -50,6 +50,7 @@ export default {
     { id: "mesh", name: "Triangle mesh", values: { count: 300, relax: 5, show: "triangulation" } },
     { id: "city", name: "Manhattan city", values: { count: 60, metric: "manhattan", relax: 2 } },
   ],
+  sweep: { periodMs: 20000, targets: [{ key: "relax", mode: "wave", min: 0, max: 20 }] },
   create(canvas, config, ctx) {
     let base = [];
     let shown = [];
@@ -147,10 +148,11 @@ export default {
 
     let cfgWithInput = config;
     return {
-      update(c) {
+      update(c, changed, meta) {
         cfgWithInput = c;
-        inst.update(c);
+        inst.update(c, changed, meta);
       },
+      isBusy: inst.isBusy,
       resize: inst.resize,
       destroy: inst.destroy,
       pointer(ev) {

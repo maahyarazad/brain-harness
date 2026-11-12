@@ -28,6 +28,7 @@ export default {
     { id: "r110", name: "Rule 110", values: { rule: 110, start: "random", density: 0.5 } },
     { id: "r184", name: "Rule 184 (traffic)", values: { rule: 184, start: "random", density: 0.45 } },
   ],
+  sweep: { kind: "run", targets: [{ key: "rule", mode: "steps", list: [30, 90, 110, 184, 54, 150, 73] }] },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
@@ -89,6 +90,8 @@ export default {
         if (rows.length > H) rows.shift();
         filled++;
       },
+      /** The screen is full of rows: an animated sweep can start the next rule. */
+      isDone: () => filled >= H,
       render,
       reset() {
         init();

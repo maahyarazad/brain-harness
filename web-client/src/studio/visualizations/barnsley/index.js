@@ -28,6 +28,16 @@ export default {
     { id: "bushy", name: "Bushy fern", values: { w1: 0.01, w2: 0.7, w3: 0.15, w4: 0.15 } },
     { id: "lopsided", name: "Lopsided", values: { w1: 0.02, w2: 0.8, w3: 0.16, w4: 0.02, palette: "fire" } },
   ],
+  // The two leaflets grow in turn, so the fern leans one way, then the other.
+  sweep: {
+    periodMs: 30000,
+    minIntervalMs: 300,
+    targets: [
+      { key: "w3", mode: "wave", min: 0.02, max: 0.15 },
+      { key: "w4", mode: "wave", min: 0.02, max: 0.15, phase: 0.5 },
+    ],
+    presetValues: { points: 150000 },
+  },
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, function* (g, cfg, _ctx, { w, h }) {
       const { w1, w2, w3, w4, points, palette } = cfg.values;

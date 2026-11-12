@@ -5,6 +5,7 @@ import { createLoop } from "../core/loop.js";
 import { randomSeed } from "../core/rng.js";
 import { decodeConfig } from "../core/shareLink.js";
 import { prefersReducedMotion } from "../core/reducedMotion.js";
+import { createSweepDriver, sweptKeys } from "../core/sweep.js";
 import KnobPanel from "./KnobPanel.jsx";
 import SeedKnob from "./knobs/SeedKnob.jsx";
 import PresetMenu from "./PresetMenu.jsx";
@@ -12,6 +13,10 @@ import PlaybackBar from "./PlaybackBar.jsx";
 import HowItWorks from "./HowItWorks.jsx";
 import ShareMenu from "./ShareMenu.jsx";
 import SaveDialog from "./SaveDialog.jsx";
+
+// The shell's own sweep knobs: they never reach the module's update().
+const SHELL_KEYS = new Set(["sweep", "sweepSpeed"]);
+const NO_KEYS = new Set();
 
 const stepsFor = (module, values) =>
   typeof module.stepsPerFrame === "function" ? module.stepsPerFrame(values) : module.stepsPerFrame ?? 1;
@@ -44,6 +49,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   const configRef = useRef(null);
   const instRef = useRef(null);
   const loopRef = useRef(null);
+  const sweepRef = useRef(null);
   const handleRef = useRef(null);
   const progressTimer = useRef(null);
   const activeRef = useRef(active);
@@ -85,6 +91,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   const teardown = useCallback(() => {
     loopRef.current?.destroy();
     loopRef.current = null;
+    sweepRef.current = null;
     try {
       instRef.current?.destroy();
     } catch {
@@ -148,15 +155,40 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
         setNotice(`This visualization failed to start: ${err.message}`);
         return;
       }
-      if (m.animated) {
+      if (m.sweep) {
+        // One step of an animated sweep: the same path as a knob change, marked
+        // so modules keep the old picture until the new one is complete.
+        const applySweep = (vals, keys, viewPatch) => {
+          const c = configRef.current;
+          const next = { ...c, values: { ...c.values, ...vals }, view: viewPatch ? { ...c.view, ...viewPatch } : c.view };
+          setConfig(next);
+          if (typeof m.stepsPerFrame === "function") loopRef.current?.setBaseSteps(stepsFor(m, next.values));
+          instRef.current?.update(next, keys, { sweep: true });
+        };
+        sweepRef.current = createSweepDriver({
+          module: m,
+          getConfig: () => configRef.current,
+          apply: applySweep,
+          isBusy: () => instRef.current?.isBusy?.() ?? false,
+          isDone: () => instRef.current?.isDone?.() ?? false,
+          getPlaybackSpeed: () => speedRef.current,
+        });
+      }
+      if (m.animated || m.sweep) {
+        // Still modules get a loop only to drive their sweep: they are never
+        // stepped or re-rendered per frame (the sweep's update() redraws them).
         loopRef.current = createLoop({
-          step: () => instRef.current?.step(),
-          render: () => instRef.current?.render(),
+          step: m.animated ? () => instRef.current?.step() : () => {},
+          render: m.animated ? () => instRef.current?.render() : () => {},
+          onFrame: () => {
+            if (configRef.current?.values.sweep) sweepRef.current?.tick();
+          },
           baseSteps: stepsFor(m, cfg.values),
           onStateChange: setPlaying,
         });
         loopRef.current.setSpeed(speedRef.current);
-        if (activeRef.current && !prefersReducedMotion(motionRef.current)) loopRef.current.play();
+        const moving = m.animated || cfg.values.sweep;
+        if (moving && activeRef.current && !prefersReducedMotion(motionRef.current)) loopRef.current.play();
         else setPlaying(false);
       }
     },
@@ -220,6 +252,17 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
     const next = { ...cfg, values: { ...cfg.values, [key]: value }, presetId: null };
     setConfig(next);
     setNotice(null);
+    if (SHELL_KEYS.has(key)) {
+      if (key === "sweep") {
+        sweepRef.current?.reset();
+        // A still module only moves while its sweep is on.
+        if (!module.animated) {
+          if (value && activeRef.current && !prefersReducedMotion(motionRef.current)) loopRef.current?.play();
+          else if (!value) loopRef.current?.pause();
+        }
+      }
+      return;
+    }
     if (typeof module.stepsPerFrame === "function") loopRef.current?.setBaseSteps(stepsFor(module, next.values));
     scheduleUpdate(key);
   }
@@ -236,7 +279,10 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
 
   function onPreset(id) {
     const p = applyPreset(module, id);
-    if (p) restartWith({ ...configRef.current, values: p.values, input: p.input, presetId: id, view: module.defaultView ? { ...module.defaultView } : null });
+    if (p) {
+      const view = p.view ?? (module.defaultView ? { ...module.defaultView } : null);
+      restartWith({ ...configRef.current, values: p.values, input: p.input, presetId: id, view });
+    }
   }
 
   function onSeed(seed) {
@@ -362,14 +408,14 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
       e.preventDefault();
       return;
     }
-    if (!module.animated) return;
+    if (!loopRef.current || (!module.animated && !configRef.current.values.sweep)) return;
     if (e.key === " ") {
       e.preventDefault();
       loopRef.current?.isPlaying() ? loopRef.current.pause() : loopRef.current?.play();
     } else if (e.key === ".") {
       loopRef.current?.stepOnce();
     } else if (e.key === "r" || e.key === "R") {
-      instRef.current?.reset();
+      instRef.current?.reset?.();
     }
   }
 
@@ -410,10 +456,10 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
               vizId={entry.id}
               name={saved?.name ?? entry.name}
               active={active}
-              recordable={module.animated || module.interactive}
+              recordable={module.animated || module.interactive || Boolean(config.values.sweep)}
               // Recording is an explicit request to see motion, so it starts
               // playback even when reduced motion started the animation paused.
-              onRecordStart={module.animated ? () => loopRef.current?.play() : undefined}
+              onRecordStart={module.animated || config.values.sweep ? () => loopRef.current?.play() : undefined}
             />
           </>
         )}
@@ -450,6 +496,11 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
                 </button>
               </div>
             )}
+            {ready && config.values.sweep && sweptKeys(module).includes("view") && (
+              <span className="sweep-badge sweep-badge-zoom" id="sweep-badge-view">
+                ⟳ sweeping zoom
+              </span>
+            )}
             {!ready && <p className="canvas-loading">Loading…</p>}
             {computing !== null && (
               <div className="progress" role="progressbar" aria-label="Drawing" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(computing * 100)}>
@@ -457,7 +508,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
               </div>
             )}
           </div>
-          {ready && module.animated && (
+          {ready && (module.animated || config.values.sweep) && (
             <PlaybackBar
               playing={playing}
               speed={speed}
@@ -469,7 +520,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
                 setSpeed(s);
                 loopRef.current?.setSpeed(s);
               }}
-              onReset={() => instRef.current?.reset()}
+              onReset={module.animated ? () => instRef.current?.reset?.() : undefined}
             />
           )}
           <div className="viewer-status" aria-live="polite">
@@ -492,7 +543,13 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
           {ready && (
             <>
               <PresetMenu presets={module.presets} activeId={config.presetId} onApply={onPreset} />
-              <KnobPanel module={module} values={config.values} onChange={onKnobChange} onReset={onReset}>
+              <KnobPanel
+                module={module}
+                values={config.values}
+                onChange={onKnobChange}
+                onReset={onReset}
+                sweeping={config.values.sweep ? new Set(sweptKeys(module)) : NO_KEYS}
+              >
                 {module.random && (
                   <SeedKnob seed={config.seed} onChange={onSeed} onRandomize={() => onSeed(randomSeed())} />
                 )}

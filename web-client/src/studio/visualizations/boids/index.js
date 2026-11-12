@@ -34,6 +34,13 @@ export default {
     { id: "swarm", name: "Swarm", values: { separation: 0.5, alignment: 0.1, cohesion: 2.5, maxSpeed: 5 } },
     { id: "loners", name: "Loners", values: { separation: 3, alignment: 0, cohesion: 0 } },
   ],
+  sweep: {
+    periodMs: 30000,
+    targets: [
+      { key: "alignment", mode: "wave", min: 0.2, max: 2 },
+      { key: "cohesion", mode: "wave", min: 0.2, max: 2, phase: 0.5 },
+    ],
+  },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

@@ -81,6 +81,13 @@ export default {
     { id: "seaweed", name: "Seaweed", values: { evenAngle: 2.5, oddAngle: -5, count: 10000, palette: "viridis" } },
     { id: "fan", name: "Fan", values: { evenAngle: 15, oddAngle: -20, count: 3000, palette: "twilight" } },
   ],
+  sweep: {
+    periodMs: 25000,
+    targets: [
+      { key: "evenAngle", mode: "wave", min: 4, max: 14 },
+      { key: "oddAngle", mode: "wave", min: -20, max: -8, phase: 0.25 },
+    ],
+  },
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, draw);
   },

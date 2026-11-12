@@ -40,6 +40,7 @@ export default {
     { id: "periodic", name: "Large ρ (60)", values: { sigma: 10, rho: 60, beta: 2.667 } },
     { id: "settles", name: "Settles (ρ = 14)", values: { rho: 14 } },
   ],
+  sweep: { periodMs: 40000, targets: [{ key: "rho", mode: "wave", min: 14, max: 40 }] },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

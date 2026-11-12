@@ -28,6 +28,7 @@ export default {
     { id: "hilbert", name: "Hilbert curve", values: { axiom: "A", rules: "A=+BF-AFA-FB+\nB=-AF+BFB+FA-", angle: 90, depth: 5, palette: "fire" } },
     { id: "arrowhead", name: "Sierpiński arrowhead", values: { axiom: "F", rules: "F=G-F-G\nG=F+G+F", angle: 60, depth: 7, palette: "viridis" } },
   ],
+  sweep: { periodMs: 20000, targets: [{ key: "angle", mode: "wave", min: 15, max: 35 }] },
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, function* (g, cfg, _ctx, { w, h }) {
       const { axiom, rules, angle, depth, palette } = cfg.values;

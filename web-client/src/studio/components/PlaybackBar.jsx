@@ -25,9 +25,11 @@ export default function PlaybackBar({ playing, speed, onPlay, onPause, onStep, o
           ))}
         </select>
       </label>
-      <button type="button" className="btn" onClick={onReset} title="Restart (R)">
-        Restart
-      </button>
+      {onReset && (
+        <button type="button" className="btn" onClick={onReset} title="Restart (R)">
+          Restart
+        </button>
+      )}
     </div>
   );
 }

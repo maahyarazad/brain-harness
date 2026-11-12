@@ -27,6 +27,14 @@ export default {
     { id: "sanmarco", name: "San Marco (−0.75)", values: { cRe: -0.75, cIm: 0 } },
     { id: "siegel", name: "Siegel disk", values: { cRe: -0.391, cIm: -0.587 } },
   ],
+  // c travels round the circle |c| = 0.7885: the classic morphing Julia set.
+  sweep: {
+    periodMs: 40000,
+    targets: [
+      { key: "cRe", mode: "wave", min: -0.7885, max: 0.7885 },
+      { key: "cIm", mode: "wave", min: -0.7885, max: 0.7885, phase: 0.25 },
+    ],
+  },
   create(canvas, config, ctx) {
     return createEscapeInstance(canvas, config, ctx, { getC: (v) => [v.cRe, v.cIm], span: 3.2 });
   },

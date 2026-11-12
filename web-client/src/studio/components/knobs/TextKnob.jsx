@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { textError } from "../../core/knobs.js";
 import { knobId } from "./format.js";
 
-export default function TextKnob({ knob, value, onChange }) {
+export default function TextKnob({ knob, value, onChange, describedBy }) {
   const id = knobId(knob.key);
   const [text, setText] = useState(value);
   const [error, setError] = useState(null);
@@ -23,7 +23,7 @@ export default function TextKnob({ knob, value, onChange }) {
     value: text,
     spellCheck: false,
     "aria-invalid": error ? true : undefined,
-    "aria-describedby": error ? `${id}-error` : undefined,
+    "aria-describedby": [error && `${id}-error`, describedBy].filter(Boolean).join(" ") || undefined,
     onChange: (e) => {
       setText(e.target.value);
       setError(textError(knob, e.target.value));

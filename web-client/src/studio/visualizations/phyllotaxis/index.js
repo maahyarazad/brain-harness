@@ -26,6 +26,8 @@ export default {
     { id: "rational", name: "90° (four arms)", values: { angle: 90, count: 600 } },
     { id: "mirror", name: "222.492° (golden, mirrored)", values: { angle: 222.492 } },
   ],
+  // Around the golden angle: spirals appear and dissolve.
+  sweep: { periodMs: 40000, targets: [{ key: "angle", mode: "wave", min: 137, max: 138 }] },
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, (g, cfg, _ctx, { w, h }) => {
       const { angle, count, spacing, dot, palette } = cfg.values;

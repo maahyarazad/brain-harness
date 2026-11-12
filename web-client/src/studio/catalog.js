@@ -1,4 +1,5 @@
 // Metadata for every visualization. Modules are loaded lazily with import().
+import { withSweep } from "./core/sweep.js";
 
 export const CATEGORIES = [
   { id: "number-patterns", name: "Number patterns" },
@@ -8,7 +9,12 @@ export const CATEGORIES = [
   { id: "algorithms", name: "Algorithm visualizations" },
 ];
 
-const e = (id, name, category, glyph, summary, load) => ({ id, name, category, glyph, summary, load });
+// Every load adds the shell's sweep knobs and preset (core/sweep.js), so the viewer,
+// file import and share links all validate against the same knob list.
+const e = (id, name, category, glyph, summary, load) => ({
+  id, name, category, glyph, summary,
+  load: () => load().then((mod) => ({ ...mod, default: withSweep(mod.default) })),
+});
 
 export const CATALOG = [
   e("collatz-coral", "Collatz coral", "number-patterns", "⟲", "Trace each number's Collatz path back from 1, bending one way on even steps and the other on odd steps.", () => import("./visualizations/collatz/index.js")),

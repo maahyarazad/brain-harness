@@ -29,6 +29,8 @@ export default {
     { id: "forest", name: "Lightning forest", values: { seedShape: "line", stickiness: 1, particles: 8000, palette: "viridis" } },
     { id: "inward", name: "Inward growth", values: { seedShape: "circle", stickiness: 0.5, particles: 8000, palette: "fire" } },
   ],
+  // Each step grows a new cluster; the old one stays on screen meanwhile.
+  sweep: { periodMs: 60000, minIntervalMs: 2000, targets: [{ key: "stickiness", mode: "wave", min: 0.2, max: 1 }], presetValues: { particles: 4000 } },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
@@ -58,22 +60,29 @@ export default {
       img.blit(g, b.x, b.y, b.w, b.h);
     }
 
-    function run() {
+    // keep: an animated sweep step. The old cluster stays on screen until the new
+    // one is grown, and the "stopped early" notices aren't repeated every step.
+    function run({ keep = false } = {}) {
       task?.cancel();
-      result = null;
-      clear(g, BG);
+      if (!keep) {
+        result = null;
+        clear(g, BG);
+      }
       const { particles, stickiness, seedShape } = cfg.values;
       task = ctx.runKernel(
         "dlaGrow",
         { particles, stickiness, seedShape, seed: cfg.seed },
         { onProgress: (p) => ctx.reportProgress(p) }
       );
-      task.promise.then(
+      const t = task;
+      t.promise.then(
         (r) => {
+          if (task === t) task = null;
           ctx.reportProgress(1);
           result = r;
           paint();
           ctx.reportStats({ stuck: r.stuck });
+          if (keep) return;
           if (r.budgetExhausted) ctx.reportNotice("Stopped early: at this stickiness, walkers rarely stick. Try a higher stickiness.");
           else if (r.stuck < particles) ctx.reportNotice("Stopped when the cluster reached the edge.");
         },
@@ -83,15 +92,18 @@ export default {
 
     run();
     return {
-      update(c, changed = []) {
+      update(c, changed = [], meta) {
         const rerun = changed.some((k) => k !== "palette") || c.seed !== cfg.seed;
         cfg = c;
-        if (rerun) run();
+        if (rerun) run({ keep: Boolean(meta?.sweep) && result !== null });
         else paint();
       },
+      /** True while a cluster is still growing. */
+      isBusy: () => task !== null,
       resize: paint,
       destroy() {
         task?.cancel();
+        task = null;
       },
     };
   },

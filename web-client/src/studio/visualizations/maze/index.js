@@ -43,6 +43,7 @@ export default {
     { id: "wilson-dijkstra", name: "Wilson's + Dijkstra", values: { generator: "wilson", solver: "dijkstra", size: 40 } },
     { id: "big", name: "Big maze", values: { size: 120, generator: "dfs", solver: "astar" } },
   ],
+  sweep: { kind: "run", targets: [{ key: "generator", mode: "steps", list: ["dfs", "prim", "wilson"] }] },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
@@ -181,6 +182,8 @@ export default {
           } else solveState = r.value;
         }
       },
+      /** Generated and solved: an animated sweep can start the next maze. */
+      isDone: () => phase === "done",
       render,
       reset() {
         init();

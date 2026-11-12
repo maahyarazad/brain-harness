@@ -78,6 +78,39 @@ video button; nothing is needed in the module for that.
 
 See [`contracts/visualization-module.md`](../specs/003-visualization-studio/contracts/visualization-module.md).
 
+### Animated sweep
+
+Every visualization has an "Animated sweep" preset that slowly moves one or two settings so the
+picture morphs. Declare which ones with `sweep`; the studio adds the preset, an "Animated sweep"
+toggle and a "Sweep speed" knob, and does the animating:
+
+```js
+sweep: {
+  periodMs: 30000,                       // one full cycle at 1× sweep speed
+  targets: [
+    { key: "angle", mode: "wave", min: 15, max: 35 },   // eases back and forth
+    { key: "spread", mode: "wave", min: 0, max: 1, phase: 0.25 },
+  ],
+  presetValues: { points: 150000 },      // optional extra values for the preset
+},
+```
+
+- Modes: `wave` (continuous settings), `wrap` (angles that go round), `log` (zoom levels and
+  log-scale counts), `steps` with a `list` (choices, rule numbers, text rules).
+- `minIntervalMs` throttles changes for slow redraws. `{ view: "zoom" }` sweeps the zoom of a
+  `defaultView` module, with `presetView` for where to zoom.
+- For visualizations that finish a run (sorting, maze), use `kind: "run"` and implement
+  `isDone()` on the instance: the next value is applied after each run ends and has been on
+  screen for `holdMs` (1.5 s by default).
+- The studio calls `update(config, changedKeys, { sweep: true })`. On those updates, keep the
+  old picture until the new one is complete, then swap it in with one draw (`staticInstance`
+  does this for you), and don't reseed the random generator.
+- If a redraw can take longer than a frame, implement `isBusy()`: the sweep waits until it
+  returns false, so each step is finished before the next.
+
+`sweep.contract.test.js` checks every declaration and that a sweep step never shows a blank or
+half-drawn picture. See [`contracts/sweep.md`](../specs/004-studio-home-sweep/contracts/sweep.md).
+
 ## 3. Add it to the catalog
 
 Add one line to `web-client/src/studio/catalog.js` with the id, name, category, a glyph for the
@@ -86,7 +119,7 @@ card, a one-line summary, and `load: () => import("./visualizations/spiral/index
 ## 4. Test it
 
 Add `web-client/src/__tests__/studio/kernels/spiral.test.js` with a few known answers. The
-contract test (`modules.contract.test.js`) and the save/replay test pick the new module up
+contract tests (`modules.contract.test.js`, `sweep.contract.test.js`) and the save/replay test pick the new module up
 automatically from the catalog. Then run:
 
 ```bash

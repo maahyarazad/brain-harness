@@ -1,19 +1,34 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import App from "./App.jsx";
 
+// Both sections are loaded on demand: studio pages never load the Playground
+// (and so never contact the MCP server), and /playground never loads the studio.
+const App = lazy(() => import("./App.jsx"));
 const StudioPage = lazy(() => import("./studio/StudioPage.jsx"));
 
 export const NavContext = createContext({ path: "/", search: "", navigate: () => {} });
 export const useNav = () => useContext(NavContext);
 
-const readLocation = () => ({ path: window.location.pathname, search: window.location.search });
+export const PLAYGROUND_PATH = "/playground";
 const isStudioPath = (p) => p === "/studio" || p.startsWith("/studio/");
 
 /**
- * Top-level shell: a small nav bar and two sections. The playground (App) is always
- * mounted so a conversation survives a visit to the studio; the studio is loaded the
- * first time it's opened and then kept mounted too.
+ * Where a location really goes. The studio is the home page: "/" and any
+ * unknown path become /studio (keeping the query). The Playground is kept but
+ * unlinked; it only opens at /playground.
  */
+function resolve(path, search) {
+  if (path === PLAYGROUND_PATH || isStudioPath(path)) return { path, search };
+  return { path: "/studio", search };
+}
+
+function readLocation() {
+  const { pathname, search } = window.location;
+  const loc = resolve(pathname, search);
+  if (loc.path !== pathname) window.history.replaceState(window.history.state, "", loc.path + loc.search);
+  return loc;
+}
+
+/** Top-level shell: the Visualization Studio, or the Playground at /playground. */
 export default function Root() {
   const [loc, setLoc] = useState(readLocation);
 
@@ -25,50 +40,32 @@ export default function Root() {
 
   const navigate = useCallback((to, { replace = false } = {}) => {
     const url = new URL(to, window.location.origin);
-    const next = url.pathname + url.search;
+    const { path, search } = resolve(url.pathname, url.search);
+    const next = path + search;
     if (next !== window.location.pathname + window.location.search) {
       window.history[replace ? "replaceState" : "pushState"](null, "", next);
     }
-    setLoc({ path: url.pathname, search: url.search });
+    setLoc({ path, search });
   }, []);
 
-  const isStudio = isStudioPath(loc.path);
-  const [studioVisited, setStudioVisited] = useState(isStudio);
-  useEffect(() => {
-    if (isStudio) setStudioVisited(true);
-  }, [isStudio]);
+  const isPlayground = loc.path === PLAYGROUND_PATH;
 
   useEffect(() => {
-    document.title = isStudio ? "Visualization Studio · Brain Harness" : "Brain Harness";
-  }, [isStudio]);
+    document.title = isPlayground ? "Brain Harness" : "Visualization Studio · Brain Harness";
+  }, [isPlayground]);
 
   const nav = useMemo(() => ({ ...loc, navigate }), [loc, navigate]);
 
-  function onLink(e, to) {
-    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    e.preventDefault();
-    navigate(to);
-  }
-
   return (
     <NavContext.Provider value={nav}>
-      <nav className="topnav" aria-label="Sections">
-        <a href="/" aria-current={!isStudio ? "page" : undefined} onClick={(e) => onLink(e, "/")}>
-          Playground
-        </a>
-        <a href="/studio" aria-current={isStudio ? "page" : undefined} onClick={(e) => onLink(e, "/studio")}>
-          Visualization Studio
-        </a>
-      </nav>
-      <div hidden={isStudio}>
-        <App />
-      </div>
-      {studioVisited && (
-        <div hidden={!isStudio}>
-          <Suspense fallback={<p className="studio-loading">Loading the studio…</p>}>
-            <StudioPage active={isStudio} />
-          </Suspense>
-        </div>
+      {isPlayground ? (
+        <Suspense fallback={<p className="studio-loading">Loading…</p>}>
+          <App />
+        </Suspense>
+      ) : (
+        <Suspense fallback={<p className="studio-loading">Loading the studio…</p>}>
+          <StudioPage active />
+        </Suspense>
       )}
     </NavContext.Provider>
   );
