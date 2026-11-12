@@ -21,7 +21,7 @@ Pick a moment that shows what the visualization is about: a finished maze with i
 
 | Item | Rule |
 |---|---|
-| Path | `web-client/public/studio/thumbs/<catalog id>.webp`, served at `/studio/thumbs/<id>.webp` |
+| Path | `web-client/public/thumbs/<catalog id>.webp`, served at `/thumbs/<id>.webp` |
 | Size | 320 × 240 px, WebP, quality 0.8 |
 | Weight | ≤ 30 KB each, ≤ 500 KB for all |
 | Background | `#0f0f12`, the studio's canvas background; the picture is fitted and centred |
@@ -32,7 +32,7 @@ Pick a moment that shows what the visualization is about: a finished maze with i
 - **Writer:** a Vite plugin (`apply: "serve"`) handles `PUT /__thumbs/<id>.webp`.
   - It accepts only ids in the catalog (`/^[a-z0-9-]+$/` and present in `CATALOG`).
   - It accepts only bodies under 200 KB that start with the RIFF/WEBP signature.
-  - It writes to `public/studio/thumbs/<id>.webp`.
+  - It writes to `public/thumbs/<id>.webp`.
 - **Production:** neither the page nor the plugin is in the production build.
 
 ## `renderThumbnail(module, recipe, { w = 320, h = 240 })` → `Promise<HTMLCanvasElement>`
@@ -48,7 +48,7 @@ Pick a moment that shows what the visualization is about: a finished maze with i
 ```html
 <span class="card-thumb" aria-hidden="true">
   <span class="card-glyph">◎</span>
-  <img src="/studio/thumbs/times-table.webp" alt="" width="320" height="240" loading="lazy" decoding="async">
+  <img src="/thumbs/times-table.webp" alt="" width="320" height="240" loading="lazy" decoding="async">
 </span>
 ```
 

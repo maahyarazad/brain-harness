@@ -375,7 +375,7 @@ test("every card shows its visualization's picture over its symbol", async () =>
   expect(thumb).toHaveAttribute("aria-hidden", "true");
   expect(thumb.querySelector(".card-glyph")).toHaveTextContent("◎");
   const img = thumb.querySelector("img");
-  expect(img).toHaveAttribute("src", "/studio/thumbs/times-table.webp");
+  expect(img).toHaveAttribute("src", "/thumbs/times-table.webp");
   expect(img).toHaveAttribute("alt", "");
   expect(img).toHaveAttribute("width", "320");
   expect(img).toHaveAttribute("height", "240");

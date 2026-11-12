@@ -1,6 +1,6 @@
 // Development-only page (/studio/__thumbnails, `npm run dev`): renders every
 // visualization's catalog picture from its `thumbnail` recipe and saves it to
-// web-client/public/studio/thumbs/<id>.webp through the dev server.
+// web-client/public/thumbs/<id>.webp through the dev server.
 import { useState } from "react";
 import { CATALOG } from "../catalog.js";
 import { renderThumbnail, thumbnailBlob, thumbnailQuality, THUMB_W, THUMB_H } from "../core/thumbnail.js";
@@ -73,7 +73,7 @@ export default function ThumbnailStudio() {
       <main>
         <p className="muted">
           Development tool. Renders each visualization from its <code>thumbnail</code> recipe and saves it to{" "}
-          <code>web-client/public/studio/thumbs/&lt;id&gt;.webp</code>. Commit the files afterwards.
+          <code>web-client/public/thumbs/&lt;id&gt;.webp</code>. Commit the files afterwards.
           {busy && ` Working: ${busy}.`} {total > 0 && `Total: ${kb(total)}.`}
         </p>
         <ul className="cards">

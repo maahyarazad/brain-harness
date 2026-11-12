@@ -33,6 +33,7 @@ jobs:
       - name: Install, test and build
         working-directory: web-client
         env:
+          # PUBLIC_URL (above) makes the Open Graph URLs absolute (build/openGraph.js).
           # Empty = same origin (nginx proxies /api to the server).
           # Set the API_BASE_URL repository variable to call the server elsewhere.
           VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
@@ -63,5 +64,9 @@ jobs:
             -e "ssh -i ~/.ssh/ec2" \
             web-client/dist/ "$EC2_USER@$EC2_HOST:$APP_DIR/"
 
-      - name: Check the page is served
-        run: curl -fsS --retry 5 --retry-delay 3 "$PUBLIC_URL/" | grep -q "<title>Brain Harness</title>"
+      - name: Check the pages are served, with their link previews
+        run: |
+          curl -fsS --retry 5 --retry-delay 3 "$PUBLIC_URL/" | grep -q "<title>Visualization Playground by Maahyar Azad</title>"
+          # Per-visualization previews need the og/ rule in deploy/nginx-brain-harness.conf.
+          curl -fsS "$PUBLIC_URL/studio/julia" | grep -q "property=\"og:image\" content=\"$PUBLIC_URL/thumbs/julia.webp\"" \
+            || echo "::warning::/studio/julia has no per-visualization preview: install deploy/nginx-brain-harness.conf on the server (sudo cp … /etc/nginx/sites-available/brain-harness && sudo nginx -t && sudo systemctl reload nginx)."

@@ -1,4 +1,4 @@
-/* Visualization Studio. Uses the playground's CSS variables for light and dark themes. */
+/* Visualization Playground (the studio). Uses the playground's CSS variables for light and dark themes. */
 
 .studio {
   max-width: 1280px;
@@ -43,8 +43,23 @@
 }
 
 .studio-header h1 a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   color: inherit;
   text-decoration: none;
+}
+
+.app-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex: none;
+}
+
+.app-byline {
+  color: var(--muted);
+  font-size: 14px;
 }
 
 .studio-header .btn,

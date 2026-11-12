@@ -162,7 +162,7 @@ User knob changes keep today's progressive drawing for quick feedback. `sweep.co
 
 ## R11 — Catalog pictures: ready-made images, generated from the real modules
 
-**Decision**: Each card shows `/studio/thumbs/<id>.webp`: a 320×240 WebP image (2× the card's size, about 160 px wide) stored in `web-client/public/studio/thumbs/` and committed to the repository.
+**Decision**: Each card shows `/thumbs/<id>.webp`: a 320×240 WebP image (2× the card's size, about 160 px wide) stored in `web-client/public/thumbs/` and committed to the repository.
 - **How they're made:** a development-only page, `/studio/__thumbnails`, renders each module with its `thumbnail` recipe (see contracts/thumbnail.md), using the module's own `create`/`step`. It draws the result off-screen and saves it as WebP at quality 0.8.
 - **Saving:** a Vite dev-server plugin (`apply: "serve"`) accepts `PUT /__thumbs/<id>.webp` and writes the file. One click on "Save all" regenerates every picture.
 - **Production:** the page is imported behind `import.meta.env.DEV`, so it isn't in the production bundle, and the plugin doesn't exist in production.
@@ -172,7 +172,7 @@ User knob changes keep today's progressive drawing for quick feedback. `sweep.co
 - Some visualizations need a lot of work before they look like themselves: Reaction–diffusion takes thousands of steps, DLA thousands of walkers, and Lorenz and Fourier need a long trail. That is fine once at generation time, but not on every visit.
 - The images are the same for every visitor and can be cached for a long time.
 - No new dependencies. The browser does the encoding, and the plugin is a few lines in `vite.config.js`.
-- nginx's `try_files $uri` serves existing files before the SPA fallback, and Vite serves `public/` before routing, so `/studio/thumbs/*.webp` never reaches the studio's router.
+- nginx's `try_files $uri` serves existing files before the SPA fallback, and Vite serves `public/` before routing, so `/thumbs/*.webp` never reaches the studio's router.
 
 **Alternatives**:
 - **Render live in each visitor's browser:** this loads all 23 modules on the home page, costs seconds of CPU on phones, and gives a different picture on every visit for random modules.

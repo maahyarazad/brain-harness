@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { openGraph } from "./build/openGraph.js";
 import { readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -8,13 +9,13 @@ import { fileURLToPath } from "node:url";
 // browser only ever talks to one origin (no CORS, and no API key in the page).
 const SERVER = "http://127.0.0.1:3000";
 
-const THUMBS_DIR = fileURLToPath(new URL("./public/studio/thumbs/", import.meta.url));
+const THUMBS_DIR = fileURLToPath(new URL("./public/thumbs/", import.meta.url));
 const CATALOG_FILE = fileURLToPath(new URL("./src/studio/catalog.js", import.meta.url));
 const MAX_THUMB_BYTES = 200 * 1024;
 
 /**
  * Development only: lets the /studio/__thumbnails page save the catalog pictures
- * (PUT /__thumbs/<id>.webp → public/studio/thumbs/<id>.webp). Not part of builds.
+ * (PUT /__thumbs/<id>.webp → public/thumbs/<id>.webp). Not part of builds.
  */
 function thumbnailWriter() {
   return {
@@ -60,7 +61,7 @@ function thumbnailWriter() {
 }
 
 export default defineConfig({
-  plugins: [react(), thumbnailWriter()],
+  plugins: [react(), thumbnailWriter(), openGraph()],
   server: {
     proxy: {
       "/api": SERVER,

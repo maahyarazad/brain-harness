@@ -1,5 +1,5 @@
 // Sample pictures for the catalog cards (specs/004-studio-home-sweep/contracts/thumbnail.md).
-// Used only by the development page that generates public/studio/thumbs/<id>.webp.
+// Used only by the development page that generates public/thumbs/<id>.webp.
 import { applyPreset, defaultsOf, validateConfig } from "./knobs.js";
 import { createModuleContext } from "./moduleContext.js";
 

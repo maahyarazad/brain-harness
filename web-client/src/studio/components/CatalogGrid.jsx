@@ -52,10 +52,10 @@ export default function CatalogGrid({ query, category, onQuery, onCategory, onOp
                     <span className="card-thumb" aria-hidden="true">
                       <span className="card-glyph">{e.glyph}</span>
                       {/* A sample picture made by the visualization itself
-                          (public/studio/thumbs). Until it loads, or if it
+                          (public/thumbs). Until it loads, or if it
                           fails, the symbol on the gradient shows instead. */}
                       <img
-                        src={`/studio/thumbs/${e.id}.webp`}
+                        src={`/thumbs/${e.id}.webp`}
                         alt=""
                         width={320}
                         height={240}

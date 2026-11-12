@@ -63,7 +63,7 @@ any ──paused / sweep off / hidden──▶ frozen (no tick); resumes in the 
 
 ## Thumbnail recipe (module-level, static)
 
-`thumbnail?: { presetId?, values?, view?, steps? }`. Rules are in contracts/thumbnail.md. It's only used by the development generator, and the generated file is `public/studio/thumbs/<id>.webp`.
+`thumbnail?: { presetId?, values?, view?, steps? }`. Rules are in contracts/thumbnail.md. It's only used by the development generator, and the generated file is `public/thumbs/<id>.webp`.
 
 ## Routes (no new data; behaviour only)
 

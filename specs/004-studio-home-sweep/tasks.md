@@ -461,3 +461,15 @@ To get pictures on screen soonest:
 2. Generate the pictures with default recipes (T041).
 3. Wire the cards (T040).
 4. Improve the recipes (T036–T039) and regenerate.
+
+---
+
+## Follow-up (after US4): app name, logo and link previews
+
+Done outside the task list, at the user's request:
+- **App name:** "Visualization Playground by Maahyar Azad" (`web-client/src/site.js`) in the header, the tab titles, `index.html` and the import messages.
+- **Logo:** `web-client/public/logo.png`, a 192 px square cut from the Julia set's catalog picture, used for the favicon and in the header.
+- **Link previews:** `web-client/build/openGraph.js` writes Open Graph and Twitter Card tags into `dist/index.html`, plus `dist/og/studio.html` and `dist/og/studio/<id>.html` per visualization. nginx serves them with `try_files $uri /og$uri.html $uri/ /index.html`.
+- **Pictures moved:** from `/studio/thumbs/` to `/thumbs/`. A `dist/studio/` folder made nginx's `$uri/` rule answer `/studio` with a 301 to `/studio/`, which then gave a 403 because that folder had no `index.html`.
+- **Checked with nginx 1.27 in Docker:** with the new rule, `/studio/julia` returns 200 with the Julia preview. With the old rule, every page returns 200 with the site preview.
+

@@ -1,11 +1,11 @@
 // @vitest-environment node
-// The catalog pictures in public/studio/thumbs (specs/004-studio-home-sweep/contracts/thumbnail.md).
+// The catalog pictures in public/thumbs (specs/004-studio-home-sweep/contracts/thumbnail.md).
 // If this fails after adding or changing a visualization: npm run dev → /studio/__thumbnails → Save.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { CATALOG } from "../../studio/catalog.js";
 
-const DIR = fileURLToPath(new URL("../../../public/studio/thumbs/", import.meta.url));
+const DIR = fileURLToPath(new URL("../../../public/thumbs/", import.meta.url));
 const files = readdirSync(DIR);
 
 /** Width and height from a WebP file's VP8 / VP8L / VP8X chunk. */

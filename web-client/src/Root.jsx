@@ -32,7 +32,7 @@ function readLocation() {
   return loc;
 }
 
-/** Top-level shell: the Visualization Studio, or the Playground at /playground. */
+/** Top-level shell: the Visualization Playground (the studio), or the MCP playground at /playground. */
 export default function Root() {
   const [loc, setLoc] = useState(readLocation);
 
@@ -54,8 +54,9 @@ export default function Root() {
 
   const isPlayground = loc.path === PLAYGROUND_PATH;
 
+  // Studio pages set their own titles (StudioPage); the MCP playground keeps its name.
   useEffect(() => {
-    document.title = isPlayground ? "Brain Harness" : "Visualization Studio · Brain Harness";
+    if (isPlayground) document.title = "Brain Harness";
   }, [isPlayground]);
 
   const nav = useMemo(() => ({ ...loc, navigate }), [loc, navigate]);
@@ -71,7 +72,7 @@ export default function Root() {
           <App />
         </Suspense>
       ) : (
-        <Suspense fallback={<p className="studio-loading">Loading the studio…</p>}>
+        <Suspense fallback={<p className="studio-loading">Loading…</p>}>
           <StudioPage active />
         </Suspense>
       )}

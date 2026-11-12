@@ -6,6 +6,7 @@ import { loadPrefs, savePrefs } from "./core/prefs.js";
 import CatalogGrid from "./components/CatalogGrid.jsx";
 import MyVisualizations from "./components/MyVisualizations.jsx";
 import Viewer from "./components/Viewer.jsx";
+import { APP_NAME, AUTHOR, LOGO_PATH, pageTitle } from "../site.js";
 import "./studio.css";
 
 function parse(path) {
@@ -29,6 +30,13 @@ export default function StudioPage({ active }) {
   const category = CATEGORIES.some((c) => c.id === params.get("category")) ? params.get("category") : null;
   const view = params.get("view");
 
+  // Tab title: the visualization (or saved version) open, else the app's name.
+  const titleName =
+    route.kind === "viz" ? findEntry(route.id)?.name : route.kind === "saved" ? getSaved(route.id)?.name : null;
+  useEffect(() => {
+    document.title = pageTitle(titleName);
+  }, [titleName]);
+
   const setFilter = (q, cat) => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
@@ -48,9 +56,11 @@ export default function StudioPage({ active }) {
     <div className="studio-header">
       <h1>
         <a href="/studio" onClick={(e) => { e.preventDefault(); navigate("/studio"); }}>
-          Visualization Studio
+          <img className="app-logo" src={LOGO_PATH} alt="" width={32} height={32} />
+          {APP_NAME}
         </a>
       </h1>
+      <span className="app-byline">by {AUTHOR}</span>
       <span className="spacer" />
       <a
         href="/studio?view=mine"

@@ -38,7 +38,7 @@ test("the root address shows the catalog at /studio without adding a history ent
   expect(window.location.pathname).toBe("/studio");
   expect(window.location.search).toBe("?category=fractals");
   expect(window.history.length).toBe(before);
-  expect(document.title).toBe("Visualization Studio · Brain Harness");
+  await waitFor(() => expect(document.title).toBe("Visualization Playground by Maahyar Azad"));
 });
 
 test("an unknown address shows the catalog at /studio", async () => {
@@ -48,12 +48,14 @@ test("an unknown address shows the catalog at /studio", async () => {
 });
 
 test.each(["/studio", "/studio/phyllotaxis", "/studio?view=mine"])(
-  "no Playground link or text on %s",
+  "no link or text for the MCP playground on %s",
   async (path) => {
     openAt(path);
     await screen.findAllByRole("heading");
     await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
-    expect(screen.queryByText(/playground/i)).not.toBeInTheDocument();
+    // The app itself is the "Visualization Playground"; the MCP playground
+    // ("Brain Harness", at /playground) must not be linked or named.
+    expect(screen.queryByText(/brain harness|^playground$/i)).not.toBeInTheDocument();
     expect(document.querySelector('a[href="/playground"]')).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Sections" })).not.toBeInTheDocument();
   }
@@ -82,6 +84,14 @@ test("opening /studio/times-table directly shows that visualization", async () =
   openAt("/studio/times-table");
   expect(await screen.findByRole("heading", { name: "Times-table circle" })).toBeInTheDocument();
   expect(await screen.findByLabelText("Multiplier m")).toBeInTheDocument();
+  await waitFor(() => expect(document.title).toBe("Times-table circle · Visualization Playground"));
+});
+
+test("the header shows the app's name, author and logo", async () => {
+  openAt("/studio");
+  const h1 = await screen.findByRole("heading", { level: 1, name: "Visualization Playground" });
+  expect(h1.querySelector("img.app-logo")).toHaveAttribute("src", "/logo.png");
+  expect(screen.getByText("by Maahyar Azad")).toBeInTheDocument();
 });
 
 test("a saved visualization link still opens", async () => {

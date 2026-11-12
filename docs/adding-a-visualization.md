@@ -114,7 +114,7 @@ half-drawn picture. See [`contracts/sweep.md`](../specs/004-studio-home-sweep/co
 ### Catalog picture
 
 Each catalog card shows a sample picture of its visualization:
-`web-client/public/studio/thumbs/<id>.webp` (320 × 240, at most 30 KB). Say how to make it with
+`web-client/public/thumbs/<id>.webp` (320 × 240, at most 30 KB). Say how to make it with
 `thumbnail` in `index.js`. Every field is optional:
 
 ```js

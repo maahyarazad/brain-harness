@@ -84,8 +84,8 @@ export async function parseImport(text, loadModule) {
   } catch {
     return { ok: false, reason: "That file isn't valid JSON." };
   }
-  if (data?.format !== "vizstudio") return { ok: false, reason: "That isn't a Visualization Studio file." };
-  if (data.formatVersion !== 1) return { ok: false, reason: "That file was made by a newer version of the studio." };
+  if (data?.format !== "vizstudio") return { ok: false, reason: "That isn't a Visualization Playground file." };
+  if (data.formatVersion !== 1) return { ok: false, reason: "That file was made by a newer version of the Visualization Playground." };
   if (!Array.isArray(data.items)) return { ok: false, reason: "That file has no visualizations in it." };
   const items = [];
   const replaced = [];
