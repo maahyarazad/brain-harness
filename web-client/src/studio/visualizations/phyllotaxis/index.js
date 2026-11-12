@@ -28,6 +28,8 @@ export default {
   ],
   // Around the golden angle: spirals appear and dissolve.
   sweep: { periodMs: 40000, targets: [{ key: "angle", mode: "wave", min: 137, max: 138 }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: {},
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, (g, cfg, _ctx, { w, h }) => {
       const { angle, count, spacing, dot, palette } = cfg.values;

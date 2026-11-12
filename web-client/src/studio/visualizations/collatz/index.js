@@ -88,6 +88,8 @@ export default {
       { key: "oddAngle", mode: "wave", min: -20, max: -8, phase: 0.25 },
     ],
   },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: {},
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, draw);
   },

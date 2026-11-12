@@ -31,6 +31,8 @@ export default {
   ],
   // Each step grows a new cluster; the old one stays on screen meanwhile.
   sweep: { periodMs: 60000, minIntervalMs: 2000, targets: [{ key: "stickiness", mode: "wave", min: 0.2, max: 1 }], presetValues: { particles: 4000 } },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { presetId: "frost" },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

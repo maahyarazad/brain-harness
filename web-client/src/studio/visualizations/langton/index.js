@@ -32,6 +32,8 @@ export default {
     { id: "crowd", name: "Four ants", values: { rule: "RL", ants: 4 } },
   ],
   sweep: { kind: "run", targets: [{ key: "rule", mode: "steps", list: ["RL", "RLR", "LLRR", "RLLR", "LRRRRRLLR"] }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { values: { size: 72 }, steps: 11000 },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

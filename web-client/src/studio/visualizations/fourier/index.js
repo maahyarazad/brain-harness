@@ -35,6 +35,8 @@ export default {
     { id: "square", name: "Square (20 circles)", values: { shape: "square", circles: 20 } },
   ],
   sweep: { periodMs: 30000, targets: [{ key: "circles", mode: "log", min: 2, max: 120 }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { steps: 510 },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

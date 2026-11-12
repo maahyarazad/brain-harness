@@ -151,3 +151,13 @@ test("a modified click on the back link is left to the browser", async () => {
   expect(ev.defaultPrevented).toBe(false);
   expect(window.location.search).toBe("?view=mine");
 });
+
+// ---- US4: the development-only picture generator ----
+
+vi.mock("../../studio/dev/ThumbnailStudio.jsx", () => ({ default: () => <h1>Catalog pictures</h1> }));
+
+test("/studio/__thumbnails opens the picture generator in development", async () => {
+  expect(import.meta.env.DEV).toBe(true);
+  openAt("/studio/__thumbnails");
+  expect(await screen.findByRole("heading", { name: "Catalog pictures" })).toBeInTheDocument();
+});

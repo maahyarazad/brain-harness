@@ -29,6 +29,9 @@ export default {
     { id: "r184", name: "Rule 184 (traffic)", values: { rule: 184, start: "random", density: 0.45 } },
   ],
   sweep: { kind: "run", targets: [{ key: "rule", mode: "steps", list: [30, 90, 110, 184, 54, 150, 73] }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  // Rule 30's noise compresses poorly, so this picture uses a lower WebP quality.
+  thumbnail: { values: { rule: 30, width: 200 }, steps: "done", quality: 0.55 },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

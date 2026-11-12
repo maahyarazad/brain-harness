@@ -44,6 +44,8 @@ export default {
     { id: "big", name: "Big maze", values: { size: 120, generator: "dfs", solver: "astar" } },
   ],
   sweep: { kind: "run", targets: [{ key: "generator", mode: "steps", list: ["dfs", "prim", "wilson"] }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { steps: "done" },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

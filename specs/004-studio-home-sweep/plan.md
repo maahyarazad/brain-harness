@@ -18,6 +18,8 @@ Every visualization gets an "Animated sweep" preset through one shared mechanism
 - The shell adds two ordinary knobs (`sweep`, `sweepSpeed`) and the preset, so sweeps persist through share, save and export with no format change.
 - A driver in the Viewer moves the swept values each frame. It uses smooth cosine, wrap, log or step mappings, waits for heavy renders to finish, and for visualizations that finish a run, waits for the run to end before starting the next.
 
+**Catalog pictures (US4)**: each card shows a ready-made 320×240 WebP picture, `public/studio/thumbs/<id>.webp`, rendered from the real module by a development-only page (`/studio/__thumbnails`). A dev-server plugin writes the files, which are then committed. Opening the catalog runs no visualization (research R11).
+
 ## Technical Context
 
 **Language/Version**: JavaScript (ES2022 modules) and JSX; Node.js 22.9+ for tooling (unchanged)
@@ -86,12 +88,17 @@ web-client/src/
 ├── styles.css                        # drop .topnav rules
 └── studio/
     ├── StudioPage.jsx                # back link toolbar for view=mine
+    ├── dev/ThumbnailStudio.jsx       # NEW (US4, dev only): renders and saves catalog pictures
     ├── core/
+    │   ├── thumbnail.js              # NEW (US4): renderThumbnail(), thumbnailBlob()
     │   ├── sweep.js                  # NEW: withSweep(), mappings, createSweepDriver()
     │   └── knobs.js                  # applyPreset returns preset.view
     ├── components/
     │   └── Viewer.jsx                # loop for sweepable modules, driver tick, playback bar, recordable
     └── visualizations/<22 modules>/index.js   # `sweep` declarations; isDone() in sorting, maze, langton, elementaryCA
+
+web-client/public/studio/thumbs/<id>.webp   # NEW (US4): 23 generated pictures
+web-client/vite.config.js                    # dev-only thumbnailWriter() plugin (US4)
 
 web-client/src/__tests__/
 ├── studio/core/sweep.test.js         # NEW: mappings, inverse, gating, run/hold, pause

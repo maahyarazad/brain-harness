@@ -41,6 +41,8 @@ export default {
       { key: "cohesion", mode: "wave", min: 0.2, max: 2, phase: 0.5 },
     ],
   },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { steps: 300 },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

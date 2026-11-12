@@ -36,6 +36,8 @@ export default {
     { id: "hexagon", name: "Hexagon star", values: { corners: 6, ratio: 0.6667, restriction: "none" } },
   ],
   sweep: { periodMs: 30000, targets: [{ key: "ratio", mode: "wave", min: 0.4, max: 0.7 }], presetValues: { points: 150000 } },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { presetId: "sierpinski", values: { points: 300000 } },
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, function* (g, cfg, _ctx, { w, h }) {
       const { corners, ratio, points, restriction, includeCenter, palette } = cfg.values;

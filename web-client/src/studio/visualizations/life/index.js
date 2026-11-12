@@ -42,6 +42,8 @@ export default {
   ],
   // A new rule every 8 s while the simulation keeps running.
   sweep: { periodMs: 24000, targets: [{ key: "rule", mode: "steps", list: ["B3/S23", "B36/S23", "B3678/S34678"] }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { steps: 120 },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

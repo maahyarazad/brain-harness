@@ -12,7 +12,7 @@ beforeEach(() => localStorage.clear());
 
 // As in modules.contract.test.js: kernels run on the main thread in tests, so the
 // heaviest modules use lighter values to stay well inside the 5 s test timeout.
-const LIGHT_VALUES = { dla: { particles: 1000 } };
+const LIGHT_VALUES = { dla: { particles: 1000 }, "collatz-coral": { count: 1000 } };
 
 /** Random valid values, limited to the lower part of each range so the test stays fast. */
 function tunedValues(module, rng) {

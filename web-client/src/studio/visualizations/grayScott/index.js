@@ -42,6 +42,8 @@ export default {
       { key: "kill", mode: "wave", min: 0.058, max: 0.064, phase: 0.25 },
     ],
   },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { presetId: "maze", steps: 1500 },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

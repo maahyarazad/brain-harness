@@ -204,6 +204,21 @@ a.btn {
   margin-bottom: 4px;
 }
 
+/* The sample picture covers the symbol once it has loaded. */
+.card-thumb {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
 .cat-number-patterns .card-thumb { background: linear-gradient(135deg, #3e4989, #1f9e89); }
 .cat-fractals .card-thumb { background: linear-gradient(135deg, #440f76, #cd4071); }
 .cat-simulation .card-thumb { background: linear-gradient(135deg, #123570, #8a8779); }

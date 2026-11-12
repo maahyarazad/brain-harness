@@ -300,3 +300,164 @@ Declarations: T018 (number patterns) ‖ T019 (fractals) ‖ T020 (simulations) 
 - Commit after each story's checkpoint.
 - Don't change the share link, storage or export format versions. Sweep state is ordinary knob values (research R3).
 - Keep the Playground's code (`web-client/src/App.jsx`, `components/`, `hooks/`, `api.js`) and its tests untouched.
+
+---
+
+## Phase 7: User Story 4 - Catalog cards show a picture of each visualization (Priority: P3)
+
+**Goal**: Each of the 23 catalog cards shows a 320×240 WebP sample picture made by that visualization (research R11, contracts/thumbnail.md). The pictures are ready-made files, so opening the catalog runs no visualization. A development-only page regenerates them.
+
+**Independent Test**: Open `/studio`. All 23 cards show their own picture, there are no visualization chunks in the Network tab, the pictures total ≤ 500 KB, and with `/studio/thumbs/*` blocked the cards show their symbols as before.
+
+### Tests for User Story 4
+
+- [X] T028 [P] [US4] Create `web-client/src/__tests__/studio/thumbnailFiles.test.js` (Node `fs`, no DOM). For every `CATALOG` id:
+  - `web-client/public/studio/thumbs/<id>.webp` exists.
+  - It starts with `RIFF` and has `WEBP` at byte 8.
+  - Its VP8/VP8L/VP8X header gives 320 × 240.
+  - It is ≤ 30 KB.
+
+  The total of all files is ≤ 500 KB, and the folder has no files for ids not in the catalog. Resolve the folder with `new URL("../../../public/studio/thumbs/", import.meta.url)` (FR-022, FR-026, FR-027).
+- [X] T029 [P] [US4] Add to `web-client/src/__tests__/studio/studio.test.jsx` (catalog section):
+  - Every card's `.card-thumb` contains an `<img>` with `src="/studio/thumbs/<id>.webp"`, `alt=""`, `width="320"`, `height="240"`, `loading="lazy"` and `decoding="async"`, plus the glyph in a `.card-glyph` span.
+  - Each card link's accessible name is still the card name and summary (`getByRole("link", { name: /Times-table circle/ })`).
+  - Firing `error` on an image removes or hides it, and the glyph stays visible.
+  - Rendering the catalog calls no `entry.load()`: spy on the `CATALOG` entries' `load` (FR-023, FR-024, FR-025).
+- [X] T030 [P] [US4] Extend `web-client/src/__tests__/studio/modules.contract.test.js` with "the thumbnail recipe is valid":
+  - If `module.thumbnail` exists, its `presetId` (if any) is in `module.presets`.
+  - Defaults + preset + `values` pass `validateConfig` with `replaced: []`.
+  - `view` passes `module.validateView` unchanged.
+  - `steps` is an integer 0–20000, and only on `animated` modules.
+- [X] T031 [P] [US4] Create `web-client/src/__tests__/studio/core/thumbnail.test.js` for `renderThumbnail` with the canvas stub:
+  - With phyllotaxis and `{ values: { angle: 137.6 } }`, it resolves to a 320×240 canvas whose log starts with a full-size `fillRect` (background) followed by one `drawImage` from a canvas.
+  - With sorting and `{ steps: 50 }`, it calls `step` 50 times (spy on the instance via a wrapped module).
+  - It destroys the instance (spy `destroy`) and disposes the context.
+  - It rejects when the recipe's preset doesn't exist.
+
+### Implementation for User Story 4
+
+- [X] T032 [US4] Create `web-client/src/studio/core/thumbnail.js` exporting:
+  - `THUMB_W = 320`, `THUMB_H = 240`.
+  - `thumbnailConfig(module)`: defaults → `applyPreset(module, recipe.presetId)` values/input/view → `recipe.values` → `recipe.view`, then `validateConfig`. It throws if the preset is missing.
+  - `renderThumbnail(module, { w, h } = {})`, per contracts/thumbnail.md steps 1–5:
+    - Use `createModuleContext({ seed: cfg.seed, dpr: 1 })`.
+    - Run steps in batches of 200 with `await new Promise((r) => setTimeout(r, 0))` between batches.
+    - Wait for `ctx.idle()`, then poll `inst.isBusy?.()` every 50 ms with a 20 s limit.
+    - Fit and centre the result onto a background-filled canvas.
+    - Destroy the instance and dispose the context in a `finally` block.
+  - `thumbnailBlob(canvas)`: `canvas.toBlob(resolve, "image/webp", 0.8)` as a promise.
+
+  Make T031 pass.
+- [X] T033 [US4] Add the dev-only writer plugin to `web-client/vite.config.js`:
+  - `thumbnailWriter()` with `apply: "serve"`.
+  - `configureServer(server)` adds middleware for `PUT /__thumbs/:id.webp`.
+  - Validate the id with `/^[a-z0-9-]+$/` and against the ids parsed from `src/studio/catalog.js`: read the file and match `e\("([a-z0-9-]+)"`, so the config doesn't import app code.
+  - Read the body with a 200 KB cap and check the RIFF/WEBP signature.
+  - `fs.mkdir` with `recursive`, then write `public/studio/thumbs/<id>.webp`.
+  - Reply 204, or 400/413 with a message.
+
+  Add it to `plugins: [react(), thumbnailWriter()]`.
+- [X] T034 [US4] Create the generator page `web-client/src/studio/dev/ThumbnailStudio.jsx`:
+  - It lists all `CATALOG` entries in a grid. For each, it loads the module, calls `renderThumbnail`, and shows the result as an `<img>` from the WebP blob with its size in KB.
+  - Each card has a "Save" button that does `fetch("/__thumbs/<id>.webp", { method: "PUT", body: blob })` and shows "saved" or the error.
+  - A "Render all" / "Save all" toolbar runs entries one at a time and shows progress ("12 / 23") and the total size.
+  - A note at the top says it's a development tool and where the files go.
+- [X] T035 [US4] Route the generator in `web-client/src/Root.jsx`, development only:
+  - `const ThumbnailStudio = import.meta.env.DEV ? lazy(() => import("./studio/dev/ThumbnailStudio.jsx")) : null;`
+  - When `ThumbnailStudio && loc.path === "/studio/__thumbnails"`, render it inside `<Suspense>` instead of `StudioPage`.
+
+  In production `/studio/__thumbnails` falls through to the studio, which shows "That visualization doesn't exist", and the generator code is tree-shaken out. Add a navigation test that `/studio/__thumbnails` renders the generator heading when `import.meta.env.DEV` is true (Vitest runs in dev mode), with `ThumbnailStudio` mocked.
+- [X] T036 [P] [US4] Thumbnail recipes for the number-pattern modules. Each `thumbnail` field goes next to `sweep`, chosen to show the visualization at its most recognizable:
+  - `web-client/src/studio/visualizations/collatz/index.js`: defaults.
+  - `web-client/src/studio/visualizations/ulam/index.js`: `{ values: { size: 40000, dot: 1 } }`.
+  - `web-client/src/studio/visualizations/recaman/index.js`: `{ values: { terms: 120 }, steps: 400 }`. Check that the arcs are complete; if the module animates growth, use enough steps.
+  - `web-client/src/studio/visualizations/timesTable/index.js`: `{ values: { m: 2, N: 300 } }`, a cardioid.
+  - `web-client/src/studio/visualizations/pascalMod/index.js`: `{ values: { modulus: 2, rows: 256 } }`, Sierpiński.
+- [X] T037 [P] [US4] Thumbnail recipes for the fractal modules:
+  - `web-client/src/studio/visualizations/mandelbrot/index.js`: defaults (the whole set).
+  - `web-client/src/studio/visualizations/julia/index.js`: defaults (spiral).
+  - `web-client/src/studio/visualizations/chaosGame/index.js`: `{ presetId: "sierpinski", values: { points: 300000 } }`.
+  - `web-client/src/studio/visualizations/lsystem/index.js`: `{ presetId: "plant" }`.
+  - `web-client/src/studio/visualizations/barnsley/index.js`: `{ presetId: "classic" }`.
+- [X] T038 [P] [US4] Thumbnail recipes for the simulation modules:
+  - `web-client/src/studio/visualizations/life/index.js`: `{ steps: 120 }`. Remember `stepsPerFrame` is 0.25; the recipe counts `step()` calls.
+  - `web-client/src/studio/visualizations/elementaryCA/index.js`: `{ values: { rule: 30 }, steps: <rows to fill the screen> }`. Use `isDone()` from 004: steps until done, capped at 2000.
+  - `web-client/src/studio/visualizations/grayScott/index.js`: a preset that forms clear patterns (for example `coral`), with `steps: 4000`.
+  - `web-client/src/studio/visualizations/boids/index.js`: `{ steps: 300 }`.
+  - `web-client/src/studio/visualizations/langton/index.js`: `{ steps: 11000 }` (the RL highway).
+  - `web-client/src/studio/visualizations/dla/index.js`: `{ presetId: "frost" }`.
+- [X] T039 [P] [US4] Thumbnail recipes for the geometry/dynamics and algorithm modules:
+  - `web-client/src/studio/visualizations/lorenz/index.js`: `{ steps: 3000 }`, a full butterfly trail.
+  - `web-client/src/studio/visualizations/doublePendulum/index.js`: `{ steps: 2400 }`, a visible trail.
+  - `web-client/src/studio/visualizations/voronoi/index.js`: `{ values: { relax: 3 } }`.
+  - `web-client/src/studio/visualizations/fourier/index.js`: `{ steps: <one full drawing cycle> }`, so the outline is complete.
+  - `web-client/src/studio/visualizations/phyllotaxis/index.js`: defaults.
+  - `web-client/src/studio/visualizations/sorting/index.js`: `{ values: { size: 80 }, steps: <about half of the run> }`, so the picture shows a sort in progress.
+  - `web-client/src/studio/visualizations/maze/index.js`: `{ steps: <until isDone()> }`, a finished maze with its path.
+
+  `renderThumbnail` should support `steps: "done"`, meaning step until `isDone()` with a 20000 cap. Add that to `core/thumbnail.js`, `contracts/thumbnail.md` and T030's check.
+- [X] T040 [US4] Show the pictures on the cards:
+  - In `web-client/src/studio/components/CatalogGrid.jsx`, inside `.card-thumb` (still `aria-hidden="true"`), render `<span className="card-glyph">{e.glyph}</span>` and `<img src={`/studio/thumbs/${e.id}.webp`} alt="" width={320} height={240} loading="lazy" decoding="async" onError={(ev) => (ev.currentTarget.hidden = true)} />`.
+  - In `web-client/src/studio/studio.css`, make `.card-thumb` `position: relative; overflow: hidden`. Make `.card-thumb img` `position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit`. Keep the gradient background and glyph underneath.
+
+  Make T029 pass.
+- [X] T041 [US4] (Done. Regenerating all 23 takes about 11 s. Pictures tuned after review:
+  - Lorenz: 12,000 steps and a 12,000-point trail.
+  - Reaction–diffusion: the "maze" preset at 1,500 steps. `renderThumbnail` now waits for `ctx.idle()` after each step, because this module drops steps while its worker is behind.
+  - Langton's ant: grid 72, so the highway is visible.
+  - Ulam: defaults.
+  - Elementary CA: width 200 and WebP quality 0.55, since rule 30's noise was 33 KB at 0.8; a recipe `quality` field was added for this.
+
+  Total size is 242 KB.) Generate the pictures:
+  - Run `npm run dev` in `web-client/`, open `http://localhost:5173/studio/__thumbnails`, and press "Save all".
+  - Look at every picture. If one doesn't show its visualization well (blank, too dark, mid-transition), adjust that module's recipe and save it again.
+  - Confirm all 23 files are in `web-client/public/studio/thumbs/` and T028 passes. If a file is over 30 KB, lower that module's detail or the WebP quality for it, and note it in research.md R11.
+
+**Checkpoint**: The catalog shows real pictures and is still free of visualization code. US4 is shippable.
+
+---
+
+## Phase 8: Polish for User Story 4
+
+- [X] T042 [P] Update `docs/adding-a-visualization.md`:
+  - A "Catalog picture" section: the `thumbnail` recipe fields, how to regenerate (`npm run dev` → `/studio/__thumbnails` → Save), and that `thumbnailFiles.test.js` fails until the new picture is committed.
+  - In "3. Add it to the catalog", mention the picture file.
+- [X] T043 [P] Update `README.md`'s studio paragraph to mention that catalog cards show sample pictures, and add `/studio/__thumbnails` (dev only) next to the dev-server instructions.
+- [X] T044 (Done. Under a full parallel run some tests timed out at random, so the suite now allows 15 s per test (`vite.config.js`) and 5 s for `findBy`/`waitFor` (`src/__tests__/setup.js`). The replay test uses a lighter Collatz count. Four runs in a row then passed: 529 tests. `dist/studio/thumbs/` has 23 files, and the generator isn't in `dist/`.) Run `npx vitest run` (three times, because of the load-sensitive tests) and `npm run build` in `web-client/`. Confirm:
+  - `dist/studio/thumbs/` has 23 files.
+  - `grep -r "__thumbnails\|ThumbnailStudio" dist/` finds nothing.
+  - `grep -r "__thumbs" dist/` finds nothing.
+- [X] T045 (Done in headless Chrome:
+  - Checks 18–20: in both the production preview and `npm run dev`, the catalog requests 23 pictures (242 KB), all load at 320 px, and no visualization chunk loads. With `/studio/thumbs/*` blocked, all 23 cards show their symbol and no image.
+  - Check 21: "Save all" took about 11 s.
+  - Check 22: `grep` finds no generator code in `dist/`.
+  - The dev writer rejects unknown ids, path tricks, non-WebP bodies (400) and bodies over 200 KB (413).) Run quickstart checks 18–22 in Chrome against `npm run dev` (and check 18 against `npm run preview`, which serves the production build). Record the results here.
+
+---
+
+## Dependencies for User Story 4
+
+- **US4** depends only on the existing catalog. It uses `isDone()` (T022) and `isBusy()` (T017a) from US3, both already done.
+- **Order:**
+  1. T028–T031 (tests, in parallel)
+  2. T032 → T033 → T034 → T035
+  3. T036–T039 (recipes, in parallel)
+  4. T040
+  5. T041 (needs T032–T040)
+  6. T042–T045
+- T040 can be done right after the tests, because cards fall back to the glyph until the files exist.
+
+### Parallel example (User Story 4)
+
+```text
+Tests:   T028 (thumbnailFiles.test.js) ‖ T029 (studio.test.jsx) ‖ T030 (modules.contract.test.js) ‖ T031 (core/thumbnail.test.js)
+Recipes: T036 (number patterns) ‖ T037 (fractals) ‖ T038 (simulations) ‖ T039 (geometry + algorithms)
+```
+
+### Strategy
+
+To get pictures on screen soonest:
+1. Build T032–T035.
+2. Generate the pictures with default recipes (T041).
+3. Wire the cards (T040).
+4. Improve the recipes (T036–T039) and regenerate.

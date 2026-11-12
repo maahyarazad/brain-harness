@@ -48,6 +48,8 @@ export default {
   ],
   // Each algorithm runs to the end, stays for a moment, then the next one starts.
   sweep: { kind: "run", targets: [{ key: "algorithm", mode: "steps", list: ["bubble", "insertion", "selection", "quick", "merge", "heap"] }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { values: { size: 80 }, steps: 400 },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

@@ -51,6 +51,8 @@ export default {
     { id: "city", name: "Manhattan city", values: { count: 60, metric: "manhattan", relax: 2 } },
   ],
   sweep: { periodMs: 20000, targets: [{ key: "relax", mode: "wave", min: 0, max: 20 }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { values: { relax: 3 } },
   create(canvas, config, ctx) {
     let base = [];
     let shown = [];

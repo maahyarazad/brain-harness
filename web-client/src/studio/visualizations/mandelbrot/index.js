@@ -26,6 +26,8 @@ export default {
     presetValues: { iterations: 600 },
     presetView: { cx: -0.743643887, cy: 0.131825904, zoom: 1 },
   },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: {},
   create(canvas, config, ctx) {
     return createEscapeInstance(canvas, config, ctx, {
       getC: () => null,

@@ -2,7 +2,7 @@
 
 Brain Harness is an MCP (Model Context Protocol) server built on Fastify, with a small web **playground** for trying it out at `/playground` (it isn't linked from the site's pages). In the playground you can type or speak a prompt, watch Claude decide which of the server's tools to call, and run any tool or prompt template directly.
 
-The web client's home page is the **Visualization Studio** (`/` opens `/studio`): 23 generative and algorithmic visualizations (Mandelbrot and Julia sets, L-systems, the Game of Life, reaction–diffusion, boids, sorting and maze algorithms, and more). Each one has knobs to tune it, presets (including an "Animated sweep" that slowly moves a setting so the picture morphs), and play/pause controls, and you can save your own versions, share them as links, or download them as images or videos. The Mandelbrot and Julia sets zoom with the mouse wheel, a pinch (touch screen or trackpad), or on-screen zoom buttons. It runs entirely in the browser and doesn't need the server. See [`specs/003-visualization-studio/quickstart.md`](specs/003-visualization-studio/quickstart.md), [`specs/004-studio-home-sweep/quickstart.md`](specs/004-studio-home-sweep/quickstart.md) and [`docs/adding-a-visualization.md`](docs/adding-a-visualization.md).
+The web client's home page is the **Visualization Studio** (`/` opens `/studio`): 23 generative and algorithmic visualizations (Mandelbrot and Julia sets, L-systems, the Game of Life, reaction–diffusion, boids, sorting and maze algorithms, and more). The catalog cards show a sample picture of each one. Each one has knobs to tune it, presets (including an "Animated sweep" that slowly moves a setting so the picture morphs), and play/pause controls, and you can save your own versions, share them as links, or download them as images or videos. The Mandelbrot and Julia sets zoom with the mouse wheel, a pinch (touch screen or trackpad), or on-screen zoom buttons. It runs entirely in the browser and doesn't need the server. See [`specs/003-visualization-studio/quickstart.md`](specs/003-visualization-studio/quickstart.md), [`specs/004-studio-home-sweep/quickstart.md`](specs/004-studio-home-sweep/quickstart.md) and [`docs/adding-a-visualization.md`](docs/adding-a-visualization.md).
 
 The longer-term goal is a versatile MCP server that connects to services like Slack and Telegram. The playground is where those integrations get built and tested.
 
@@ -32,6 +32,7 @@ npm run dev               # http://127.0.0.1:3000
 cd web-client
 npm install
 npm run dev               # studio: http://localhost:5173 · playground: http://localhost:5173/playground
+                          # catalog pictures (dev only): http://localhost:5173/studio/__thumbnails
 ```
 
 **The API key lives only in `server/.env`.** That file is git-ignored, and the browser never sees the key. The playground talks to the server through Vite's dev proxy.

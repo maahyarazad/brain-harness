@@ -111,10 +111,31 @@ sweep: {
 `sweep.contract.test.js` checks every declaration and that a sweep step never shows a blank or
 half-drawn picture. See [`contracts/sweep.md`](../specs/004-studio-home-sweep/contracts/sweep.md).
 
+### Catalog picture
+
+Each catalog card shows a sample picture of its visualization:
+`web-client/public/studio/thumbs/<id>.webp` (320 × 240, at most 30 KB). Say how to make it with
+`thumbnail` in `index.js`. Every field is optional:
+
+```js
+thumbnail: { presetId: "plant", values: { depth: 5 }, steps: 400 },
+```
+
+- `presetId` and `values` set the knobs, and `view` sets the view for pan/zoom modules.
+- `steps` is how far an animated module runs before the snapshot. `"done"` runs until
+  `isDone()`.
+- `quality` lowers the WebP quality for noisy pictures that would go over 30 KB.
+
+To make or refresh pictures, run `npm run dev`, open
+`http://localhost:5173/studio/__thumbnails`, check the pictures, and press **Save** (one) or
+**Save all**. The dev server writes the files; commit them. `thumbnailFiles.test.js` fails until a
+new visualization has its picture. The page and the writer exist only in `npm run dev`.
+
 ## 3. Add it to the catalog
 
 Add one line to `web-client/src/studio/catalog.js` with the id, name, category, a glyph for the
-card, a one-line summary, and `load: () => import("./visualizations/spiral/index.js")`.
+card, a one-line summary, and `load: () => import("./visualizations/spiral/index.js")`. Then
+generate its catalog picture (see "Catalog picture" above).
 
 ## 4. Test it
 

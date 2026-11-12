@@ -44,3 +44,9 @@ All tests pass and the build succeeds.
 | 15 | Sweep running → Share link → open it in a new tab; same with Save and Export/Import | Same sweep at the same speed | FR-015, SC-006 |
 | 16 | Phyllotaxis (normally still) with the sweep on | "Record video" is offered and records the sweep | FR-019 |
 | 17 | Times-table "Animated sweep" | Same as before | FR-017 |
+| 18 | Open the catalog; DevTools → Network | 23 `/studio/thumbs/*.webp` requests (lazy), total ≤ 500 KB; no visualization chunks | US4, FR-023, FR-026 |
+| 19 | Look at every card | Each shows its own visualization's picture; card sizes match the glyph-only layout | FR-022, FR-024 |
+| 20 | Block `/studio/thumbs/*` in DevTools and reload | Cards show their symbol on the gradient, no broken-image icons | FR-024 |
+| 21 | `npm run dev`, open `/studio/__thumbnails`, press "Save all" | All 23 files rewritten in `web-client/public/studio/thumbs/` within 2 minutes | FR-027, SC-009 |
+| 22 | `npm run build`, then `grep -r __thumbnails dist/` | No match: the generator isn't shipped | FR-027 |
+

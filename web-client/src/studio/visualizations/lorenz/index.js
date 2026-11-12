@@ -41,6 +41,8 @@ export default {
     { id: "settles", name: "Settles (ρ = 14)", values: { rho: 14 } },
   ],
   sweep: { periodMs: 40000, targets: [{ key: "rho", mode: "wave", min: 14, max: 40 }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { values: { trail: 12000 }, steps: 12000 },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

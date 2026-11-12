@@ -79,6 +79,24 @@ The Times-table circle has an "Animated sweep" preset: picking it slowly and con
 
 ---
 
+### User Story 4 - Catalog cards show a picture of each visualization (Priority: P3)
+
+Each card in the catalog shows a small sample picture of that visualization (the Times-table card shows a cardioid, the Mandelbrot card the set itself) instead of a symbol on a colored gradient. Visitors can see what each one looks like before opening it.
+
+**Why this priority**: It makes the home page much more inviting, now that the studio is the first thing people see. It doesn't change what any visualization does, so it comes after the other stories.
+
+**Independent Test**: Open the catalog. All 23 cards show a picture of their own visualization, the page appears as fast as before, and no visualization code runs until a card is opened.
+
+**Acceptance Scenarios**:
+
+1. **Given** the catalog, **When** it loads, **Then** every one of the 23 cards shows a sample picture made by that visualization itself.
+2. **Given** a slow connection, **When** the catalog is loading, **Then** each card keeps its colored background and symbol until its picture arrives. The layout doesn't jump.
+3. **Given** a picture fails to load, **When** the card is shown, **Then** the symbol on the colored background is shown instead, as today.
+4. **Given** a screen reader, **When** it reads a card, **Then** it announces the card's name and summary, not the picture.
+5. **Given** a developer changes how a visualization looks or adds a new one, **When** they follow the guide, **Then** they can regenerate the pictures from the real visualizations with one documented step, and a test fails if a catalog entry has no picture.
+
+---
+
 ### Edge Cases
 
 - **Old Playground bookmark**: the root address used to be the Playground, so an old bookmark to it now opens the studio catalog at /studio. No error page and no broken page are shown.
@@ -126,6 +144,15 @@ The Times-table circle has an "Animated sweep" preset: picking it slowly and con
 - **FR-020**: For visualizations whose run finishes (sorting, maze, Langton's ant, 1-D cellular automaton), the sweep MUST apply its next setting only after the current run finishes, then start a new run. Continuously running simulations MUST be swept without restarting.
 - **FR-021**: The sweep is offered only as each visualization's hand-picked "Animated sweep" preset. A per-slider sweep switch is out of scope.
 
+**Catalog pictures**
+
+- **FR-022**: Every catalog card MUST show a sample picture of its visualization, made by running that visualization (not drawn by hand).
+- **FR-023**: Opening the catalog MUST NOT run any visualization or load its code. The pictures are ready-made images.
+- **FR-024**: While a picture loads, or if it fails, the card MUST show its colored background and symbol, with the card size unchanged.
+- **FR-025**: Pictures MUST be decorative for assistive technology. The card's accessible name stays its name and summary.
+- **FR-026**: Each picture MUST be small: at most 30 KB, and all 23 together at most 500 KB.
+- **FR-027**: The pictures MUST be regenerable from the visualizations with one documented developer step. A test MUST fail when a catalog entry has no picture. The generator MUST NOT be part of the site visitors get.
+
 ### Key Entities
 
 - **Sweep**: an animation of one or more settings of a visualization. Has the settings it moves, the range for each, a speed, and how it handles the end of the range (reverse, or wrap for circular settings). It is on or off, and is saved with the rest of the visualization's settings.
@@ -143,6 +170,8 @@ The Times-table circle has an "Animated sweep" preset: picking it slowly and con
 - **SC-005**: During any sweep, pause takes effect within a quarter of a second and the user can change any knob without the page freezing.
 - **SC-006**: A sweep saved, shared or exported and then reopened starts the same sweep at the same speed, for every visualization.
 - **SC-007**: The Playground's existing automated tests all still pass.
+- **SC-008**: All 23 catalog cards show their visualization's picture. The catalog transfers no more than 500 KB of pictures and starts no visualization.
+- **SC-009**: A developer can regenerate all 23 pictures in under 2 minutes.
 
 ## Assumptions
 

@@ -4,6 +4,10 @@ import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useM
 // (and so never contact the MCP server), and /playground never loads the studio.
 const App = lazy(() => import("./App.jsx"));
 const StudioPage = lazy(() => import("./studio/StudioPage.jsx"));
+// Development only: the page that generates the catalog pictures. The condition
+// is a build-time constant, so production builds drop it entirely.
+const ThumbnailStudio = import.meta.env.DEV ? lazy(() => import("./studio/dev/ThumbnailStudio.jsx")) : null;
+export const THUMBNAILS_PATH = "/studio/__thumbnails";
 
 export const NavContext = createContext({ path: "/", search: "", navigate: () => {} });
 export const useNav = () => useContext(NavContext);
@@ -58,7 +62,11 @@ export default function Root() {
 
   return (
     <NavContext.Provider value={nav}>
-      {isPlayground ? (
+      {ThumbnailStudio && loc.path === THUMBNAILS_PATH ? (
+        <Suspense fallback={<p className="studio-loading">Loading…</p>}>
+          <ThumbnailStudio />
+        </Suspense>
+      ) : isPlayground ? (
         <Suspense fallback={<p className="studio-loading">Loading…</p>}>
           <App />
         </Suspense>

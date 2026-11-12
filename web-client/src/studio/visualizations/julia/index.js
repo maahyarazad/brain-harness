@@ -35,6 +35,8 @@ export default {
       { key: "cIm", mode: "wave", min: -0.7885, max: 0.7885, phase: 0.25 },
     ],
   },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: {},
   create(canvas, config, ctx) {
     return createEscapeInstance(canvas, config, ctx, { getC: (v) => [v.cRe, v.cIm], span: 3.2 });
   },

@@ -38,6 +38,8 @@ export default {
     ],
     presetValues: { points: 150000 },
   },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { presetId: "classic" },
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, function* (g, cfg, _ctx, { w, h }) {
       const { w1, w2, w3, w4, points, palette } = cfg.values;

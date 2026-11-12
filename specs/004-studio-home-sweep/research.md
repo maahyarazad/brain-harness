@@ -159,3 +159,26 @@ Chaos game and Barnsley (`staticInstance` generators) and DLA clear the canvas w
 - `escapeView` (Mandelbrot/Julia) draws the last sharp picture mapped onto the new view, then swaps in the new sharp picture, with no blurry preview in between, which would make a sweep flicker.
 
 User knob changes keep today's progressive drawing for quick feedback. `sweep.contract.test.js` splits each still module's drawing log into frames and fails if a sweep step leaves a frame cleared or draws in more than two frames; disabling the off-screen path makes it fail for Chaos game, Barnsley and DLA.
+
+## R11 — Catalog pictures: ready-made images, generated from the real modules
+
+**Decision**: Each card shows `/studio/thumbs/<id>.webp`: a 320×240 WebP image (2× the card's size, about 160 px wide) stored in `web-client/public/studio/thumbs/` and committed to the repository.
+- **How they're made:** a development-only page, `/studio/__thumbnails`, renders each module with its `thumbnail` recipe (see contracts/thumbnail.md), using the module's own `create`/`step`. It draws the result off-screen and saves it as WebP at quality 0.8.
+- **Saving:** a Vite dev-server plugin (`apply: "serve"`) accepts `PUT /__thumbs/<id>.webp` and writes the file. One click on "Save all" regenerates every picture.
+- **Production:** the page is imported behind `import.meta.env.DEV`, so it isn't in the production bundle, and the plugin doesn't exist in production.
+
+**Rationale**:
+- Opening the catalog stays as cheap as today: no module chunks, no kernels, no workers (FR-023).
+- Some visualizations need a lot of work before they look like themselves: Reaction–diffusion takes thousands of steps, DLA thousands of walkers, and Lorenz and Fourier need a long trail. That is fine once at generation time, but not on every visit.
+- The images are the same for every visitor and can be cached for a long time.
+- No new dependencies. The browser does the encoding, and the plugin is a few lines in `vite.config.js`.
+- nginx's `try_files $uri` serves existing files before the SPA fallback, and Vite serves `public/` before routing, so `/studio/thumbs/*.webp` never reaches the studio's router.
+
+**Alternatives**:
+- **Render live in each visitor's browser:** this loads all 23 modules on the home page, costs seconds of CPU on phones, and gives a different picture on every visit for random modules.
+- **Render live once and cache in `localStorage`:** the first visit still pays the cost, and it competes with saved visualizations for storage space.
+- **A Node script with a canvas library:** that's a native dependency, and it wouldn't run the code exactly as browsers do.
+- **Playwright as a dev dependency:** a large download, and it needs a browser installed. The dev page needs neither, since the developer's own browser does the work.
+
+**Fallback**: the `<img>` sits on top of the existing gradient and symbol. Until it loads, or if it fails (`onError` hides it), the card looks as it does today (FR-024). Fixed `width`/`height` and the card's existing `aspect-ratio: 4/3` prevent layout shift.
+

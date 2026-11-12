@@ -362,3 +362,41 @@ describe("video download", () => {
     expect(screen.queryByRole("button", { name: "Record video" })).toBeNull();
   });
 });
+
+// ---- US4 (004): catalog pictures ----
+
+test("every card shows its visualization's picture over its symbol", async () => {
+  await openStudio("/studio");
+  await screen.findByRole("heading", { name: "Number patterns" });
+  const link = screen.getByRole("link", { name: /Times-table circle/ });
+  // The picture is decorative: the link is still named by its text.
+  expect(link).toHaveAccessibleName(/Times-table circle.*Connect point k/);
+  const thumb = link.querySelector(".card-thumb");
+  expect(thumb).toHaveAttribute("aria-hidden", "true");
+  expect(thumb.querySelector(".card-glyph")).toHaveTextContent("◎");
+  const img = thumb.querySelector("img");
+  expect(img).toHaveAttribute("src", "/studio/thumbs/times-table.webp");
+  expect(img).toHaveAttribute("alt", "");
+  expect(img).toHaveAttribute("width", "320");
+  expect(img).toHaveAttribute("height", "240");
+  expect(img).toHaveAttribute("loading", "lazy");
+  expect(img).toHaveAttribute("decoding", "async");
+  expect(document.querySelectorAll(".card-thumb img")).toHaveLength(23);
+});
+
+test("a picture that fails to load leaves the symbol showing", async () => {
+  await openStudio("/studio");
+  await screen.findByRole("heading", { name: "Number patterns" });
+  const thumb = screen.getByRole("link", { name: /Mandelbrot set/ }).querySelector(".card-thumb");
+  fireEvent.error(thumb.querySelector("img"));
+  expect(thumb.querySelector("img")).not.toBeVisible();
+  expect(thumb.querySelector(".card-glyph")).toBeVisible();
+});
+
+test("the catalog loads no visualization code", async () => {
+  const { CATALOG } = await import("../../studio/catalog.js");
+  const spies = CATALOG.map((e) => vi.spyOn(e, "load"));
+  await openStudio("/studio");
+  await screen.findByRole("heading", { name: "Number patterns" });
+  for (const s of spies) expect(s).not.toHaveBeenCalled();
+});

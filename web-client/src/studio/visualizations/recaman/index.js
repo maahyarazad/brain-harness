@@ -30,6 +30,8 @@ export default {
     { id: "dense", name: "Dense 600", values: { terms: 600, lineWidth: 0.5, palette: "viridis" } },
   ],
   sweep: { periodMs: 30000, targets: [{ key: "terms", mode: "log", min: 20, max: 600 }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { values: { terms: 120 }, steps: 240 },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

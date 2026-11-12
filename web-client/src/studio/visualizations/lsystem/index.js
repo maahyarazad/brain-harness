@@ -29,6 +29,8 @@ export default {
     { id: "arrowhead", name: "Sierpiński arrowhead", values: { axiom: "F", rules: "F=G-F-G\nG=F+G+F", angle: 60, depth: 7, palette: "viridis" } },
   ],
   sweep: { periodMs: 20000, targets: [{ key: "angle", mode: "wave", min: 15, max: 35 }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { presetId: "plant" },
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, function* (g, cfg, _ctx, { w, h }) {
       const { axiom, rules, angle, depth, palette } = cfg.values;
