@@ -117,6 +117,21 @@ A user records the canvas while a visualization animates, or while they pan and 
 
 ---
 
+### User Story 7 - Zoom without tearing (Priority: P1)
+
+While a user zooms or pans the Mandelbrot or Julia set, the whole canvas always shows one view: first a scaled copy of the last picture, then a quick low-resolution picture, then the sharp picture replacing it all at once. The picture never appears as strips drawn from top to bottom, and never shows the old view below the new one.
+
+**Why this priority**: Zooming is the main interaction for these fractals; a torn picture during every gesture (and in recorded videos) makes them look broken.
+
+**Independent Test**: Record a pinch-zoom video on the Julia set and step through it frame by frame: no frame contains a horizontal seam between two views.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Mandelbrot or Julia set, **When** the user pinches, scrolls, drags, or presses a zoom key or button, **Then** the canvas shows the new view (scaled from the last picture) within one animation frame.
+2. **Given** a zoom gesture, **When** the user stops, **Then** the sharp picture replaces the preview in one step.
+
+---
+
 ### Edge Cases
 
 - A share link or imported file names an unknown algorithm or has missing or invalid values: the studio opens what it can, falls back to defaults for bad values, and tells the user which values were replaced.
@@ -182,6 +197,7 @@ A user records the canvas while a visualization animates, or while they pan and 
 - **FR-026**: The studio MUST work on desktop and phone-width screens; on narrow screens the knobs panel MAY collapse below or beside the canvas.
 - **FR-027**: The studio MUST offer a reduced-motion setting, on by default when the operating system asks for reduced motion, that starts animations paused.
 - **FR-028**: Mandelbrot and Julia MUST zoom with a two-finger pinch on touch screens and a trackpad pinch in every supported browser, keeping the zoom centered on the pinch midpoint, and MUST show on-screen Zoom in, Zoom out, and Reset view controls.
+- **FR-030**: Zoom and pan in Mandelbrot and Julia MUST never show parts of two different views at once; the sharp picture MUST replace the preview in one step.
 
 ### Visualization Catalog and Required Knobs
 
@@ -257,6 +273,7 @@ V06 and V07, and V11 and V12, appear as separate catalog entries but may share a
 - **SC-006**: A first-time user can find a visualization, change a knob, and save the result in under 1 minute without instructions.
 - **SC-007**: All existing playground tests still pass, and the playground's manual checks give the same results as before.
 - **SC-008**: Every knob and control in the studio can be reached and changed with the keyboard alone.
+- **SC-009**: While a zoom gesture is in progress, the canvas shows the new view within one animation frame of each input event, and the sharp picture appears within 1 second of the gesture ending at default settings on a typical laptop.
 
 ## Assumptions
 

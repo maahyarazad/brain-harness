@@ -65,6 +65,13 @@ device pixels. Besides `down`/`move`/`up`/`leave`/`dblclick`/`key`, the studio s
   each one but redraw at most once per animation frame.
 - `up` with `cancelDrag: true` when a second finger goes down: drop the drag without applying it.
 
+For pan/zoom modules, never paint partial results onto the visible canvas: on each input, draw the
+last finished picture scaled and shifted to the new view, and swap in each finished pass (a quick
+low-resolution one, then full resolution once the input settles) with a single draw. Otherwise the
+picture tears into old and new strips while the user zooms, and in recorded videos. See
+`visualizations/mandelbrot/escapeView.js` and research.md
+[R14](../specs/003-visualization-studio/research.md).
+
 Declare `defaultView` (as Mandelbrot and Julia do) to get on-screen Zoom in, Zoom out and Reset
 view buttons; + and − arrive as `key` events. Animated or interactive modules also get a Record
 video button; nothing is needed in the module for that.

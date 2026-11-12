@@ -52,11 +52,15 @@ function newWorker() {
   return slot;
 }
 
+const MAX_WORKERS = 8;
+
+/** How many workers the pool uses (one core is left for the page). */
+export function poolSize() {
+  return Math.max(1, Math.min(MAX_WORKERS, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1));
+}
+
 function getPool() {
-  if (!pool) {
-    const n = Math.max(1, Math.min(4, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1));
-    pool = Array.from({ length: n }, newWorker);
-  }
+  if (!pool) pool = Array.from({ length: poolSize() }, newWorker);
   return pool;
 }
 

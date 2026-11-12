@@ -69,3 +69,4 @@ Run these in Chrome and in one of Firefox or Safari, plus one phone-width window
 | 24 | Trackpad pinch on Mandelbrot in Safari and in Chrome | Zooms at a speed similar to the mouse wheel | FR-028 |
 | 25 | Zoom in, Zoom out, Reset view buttons on Mandelbrot and Julia (mouse and keyboard) | Zooms around the center; Reset returns to the default view | FR-028 |
 | 26 | Record 5 s of boids, stop, play the downloaded file | File plays; named `boids-<yyyymmdd-hhmmss>.mp4` or `.webm` | FR-029 |
+| 27 | Record a 5 s pinch or wheel zoom on Julia, then step through it frame by frame (`ffmpeg -i <file> -vf fps=10 frame-%03d.png`) | No frame shows a horizontal seam between two views; the picture goes from blurry to sharp in one step after the gesture stops | FR-030, SC-009 |

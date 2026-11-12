@@ -254,6 +254,54 @@ description: "Task list for the Visualization Studio"
 
 ---
 
+## Phase 12: Scope update for the third increment (zoom without tearing)
+
+**Purpose**: Record what the recording shows, why rendering stays in the browser, and the new requirement.
+
+**Background (from `julia-20261111-164309.mp4`, 6.06 s, 1398×1048, 30 fps, recorded on 2026-11-11)**: Every zoom step redraws the picture as 16-row bands that land top to bottom as workers finish them (`render()` and `paint()` in `web-client/src/studio/visualizations/mandelbrot/escapeView.js`). A zoom gesture fires many events, and each one cancels the previous render and starts a new sweep, so most video frames show the new view in the top part and the old view below a hard horizontal seam (e.g. at 1.85 s the bottom quarter is still the previous zoom). Measured on one core at 1398×1048, 300 iterations (`escapeBand` in `kernel.js`): Julia default 157 ms, Julia zoom 8× 438 ms, Mandelbrot default 228 ms, Mandelbrot seahorse 50× 998 ms; the same frames at quarter resolution take 9–63 ms.
+
+**Decision: keep rendering in the browser; do not move it to the server.** The problem is how partial results are shown, not raw speed. A server round trip adds network latency plus transfer of a 1398×1048 image (about 1–3 MB as PNG) per zoom step, which is slower than computing it locally; the server is a single shared EC2 instance whose CPU is divided among all users; and FR-003 requires the studio to work without the server. T110 records this in research.md with the numbers above.
+
+- [X] T108 Update `specs/003-visualization-studio/spec.md`: add "User Story 7 - Zoom without tearing (Priority: P1)" (while zooming or panning Mandelbrot/Julia the whole canvas always shows one view: an immediately scaled copy of the last picture, then a quick low-resolution picture, then the sharp picture replacing it all at once; independent test: record a pinch-zoom video and step through it frame by frame, no frame contains a horizontal seam between two views); add **FR-030** (zoom and pan MUST never show parts of two different views at once; the sharp picture MUST replace the preview in one step) and **SC-009** (while a zoom gesture is in progress, the canvas shows the new view within one animation frame of each input event, and the sharp picture appears within 1 s of the gesture ending at default settings on a typical laptop)
+- [X] T109 [P] Add manual check 27 to the table in `specs/003-visualization-studio/quickstart.md`: record a 5 s pinch or wheel zoom on Julia, step through the file frame by frame (`ffmpeg -i <file> -vf fps=10 frame-%03d.png`): no frame shows a horizontal seam; the picture goes from blurry to sharp in one step after the gesture stops (FR-030, SC-009)
+- [X] T110 [P] Add "## R14. Fractal zoom rendering: browser, not server" to `specs/003-visualization-studio/research.md` with the measurements and the decision from the Phase 12 background above, the alternatives considered (server-side rendering on the EC2 instance; WebGL fragment shader, rejected for now because float32 precision blurs past about 10⁵× zoom and the studio zooms to 10¹³×) and the chosen approach (scaled preview → quarter-resolution pass → full-resolution pass assembled off-screen and shown in one step)
+
+**Checkpoint**: Design documents describe US7 and the browser-only decision
+
+---
+
+## Phase 13: User Story 7 - Zoom without tearing (Priority: P1)
+
+**Goal**: Mandelbrot and Julia never show two views at once. Each zoom/pan input instantly shows a scaled copy of the last finished picture, then a quarter-resolution picture of the whole new view, then the full-resolution picture swapped in all at once after the gesture settles.
+
+**Independent Test**: Record a pinch or wheel zoom on `/studio/julia` and step through the video frame by frame: no frame has a seam; the picture sharpens in one step (quickstart check 27).
+
+### Tests for User Story 7
+
+- [X] T111 [P] [US7] Extend `web-client/src/__tests__/studio/canvasStub.js` so tests can tell drawing steps apart: record `drawImage` calls with their source (`"canvas"` for an `HTMLCanvasElement` source, otherwise `"other"`) and their destination rectangle, record `putImageData` with the image's `width`/`height` and the destination `x`/`y`, and record assignments to `imageSmoothingEnabled`; keep the existing `calls` shape (`[name, args]`) so `modules.contract.test.js` determinism checks still compare equal for identical runs
+- [X] T112 [P] [US7] Add tests to `web-client/src/__tests__/studio/escapeView.test.js` (use fake timers and a manual `requestAnimationFrame` from `browserStubs.js` `createFrameDriver`): (1) a `pinch` event immediately (before any kernel result) draws the previous frame scaled with `drawImage` to a destination that covers the zoomed region, with nothing drawn from kernel results yet; (2) after the preview pass resolves, exactly one `drawImage` covers the whole canvas from the low-resolution buffer (no per-band `putImageData` onto the visible canvas); (3) during a burst of pinch events spaced 16 ms apart, no full-resolution kernel jobs start (spy on `ctx.runKernel` and check the `width` argument equals the quarter-resolution width); 150 ms after the last event the full-resolution pass starts; (4) when all full-resolution bands have resolved, the visible canvas receives exactly one whole-canvas draw, and no visible draw happens while some bands are still pending; (5) a new zoom event while the full-resolution pass is running cancels it (all its tasks cancelled) and no stale bands are ever drawn; (6) pan via `down`/`move`/`up` follows the same rules (live shifted preview, then preview pass, then one full-resolution swap)
+- [X] T113 [P] [US7] Add `web-client/src/__tests__/studio/kernels/escapeBand.test.js` (or extend the existing Mandelbrot kernel test if there is one in `web-client/src/__tests__/studio/kernels/`): with the cardioid/bulb shortcut and periodicity check from T117, `escapeBand` returns exactly the same counts as a plain reference loop (copy of the current algorithm, inline in the test) for a 64×48 Mandelbrot frame at the default view, a 64×48 frame at seahorse valley zoom 50, and a 64×48 Julia frame, within 1e-9 per pixel for escaped points and identical `-1` for points that never escape
+
+### Implementation for User Story 7
+
+- [X] T114 [US7] Add a front buffer and an instant preview to `web-client/src/studio/visualizations/mandelbrot/escapeView.js`: keep an off-screen canvas (`document.createElement("canvas")`, falling back to `new OffscreenCanvas` when available) holding the last finished full-resolution frame together with the `view` it was drawn for (`frontView`); add `drawPreview()` which clears the visible canvas to the background color and draws the front buffer scaled and offset from `frontView` to the current `view` (scale = `view.zoom / frontView.zoom`; offset from the difference in centers divided by the new `dx`), with `imageSmoothingEnabled = true`; call it synchronously from every view change (`zoomAt`, arrow-key pan, drag `move` in place of the current `g.drawImage(canvas, …)` self-shift, drag `up`, `update` with a new view) so the canvas shows the new geometry within the same event
+- [X] T115 [US7] Replace the band-by-band painting in `escapeView.js` with two passes that are each shown in one step: (a) **preview pass**: compute the whole view at quarter resolution (`width = ceil(w / 4)`, `height = ceil(h / 4)`, `dx * 4`) split into as many row chunks as there are pool workers, assemble the results into a quarter-size `ImageData`, and when all chunks are done draw it scaled up over the whole canvas with one `drawImage` (smoothing on); (b) **full pass**: compute full resolution in row chunks into an off-screen `ImageData` the size of the canvas, report progress per chunk, and only when every chunk has arrived `putImageData` it into the front buffer, set `frontView = view`, and draw the front buffer to the visible canvas in one call; drop any result that arrives for a view that is no longer current (compare a render generation counter) and cancel every outstanding task when a new render starts
+- [X] T116 [US7] Gate the full pass on the gesture settling in `escapeView.js`: every view change from `pinch`, `wheel`, `move` during a drag, keys, or buttons runs `drawPreview()` and (re)schedules the preview pass on the next animation frame (coalesced as today); the full pass starts only after 150 ms without a view change (`SETTLE_MS = 150`, cleared and restarted on each change, cleared in `destroy`); `dblclick`, the zoom buttons, `update` and `resize` start the preview pass at once and the full pass right after it finishes; keep the existing zoom-limit notice and `ctx.setView` calls
+- [X] T117 [P] [US7] Speed up `escapeBand` in `web-client/src/studio/visualizations/mandelbrot/kernel.js` without changing results: for the Mandelbrot set (no `juliaC`) skip points inside the main cardioid (`q = (x − ¼)² + y²; q(q + (x − ¼)) ≤ ¼y²`) and the period-2 bulb (`(x + 1)² + y² ≤ 1/16`) by returning `-1` immediately; add periodicity checking for points that don't escape (every 20 iterations save `(zx, zy)`; if the orbit returns within 1e-14 of the saved point, return `-1`); also accept `step` (default 1) so the preview pass can sample every 4th pixel without a separate code path if that is simpler than passing `dx * 4`
+- [X] T118 [P] [US7] Raise the worker pool size in `web-client/src/studio/core/workerPool.js` from `min(4, hardwareConcurrency − 1)` to `min(8, hardwareConcurrency − 1)` (at least 1), and export `poolSize()` so `escapeView.js` can split each pass into `poolSize()` chunks (interleaved rows are not needed: chunks are shown only when the whole pass is done)
+- [X] T119 [US7] Make progress honest in `escapeView.js`: report progress only for the full pass (`done / chunks`), and report `1` when it is shown, so the progress bar (which appears after 1 s) tracks the sharp picture rather than the preview; update the zoom stat (`ctx.reportStats`) on every view change, not only when a render starts
+
+**Checkpoint**: Zooming and panning on Mandelbrot and Julia never show a seam; `npm test` green
+
+---
+
+## Phase 14: Polish for the third increment
+
+- [X] T120 [P] Update the "Interaction" section of `docs/adding-a-visualization.md`: for pan/zoom modules, show a transformed copy of the last frame on each input and swap in finished passes in one step instead of painting partial results (link research.md R14)
+- [ ] T121 Run `npm test` and `npm run build` in `web-client/`, then in Chrome record a 5 s pinch/wheel zoom on Julia and on Mandelbrot with the Record video button, extract frames with `ffmpeg -i <file> -vf fps=10 frame-%03d.png`, and confirm no frame contains a seam (quickstart check 27); note the result under this task and delete the test recordings — **Partly done (2026-11-11):** `npm test` (327 tests) and `npm run build` pass. In headless Chrome at device pixel ratio 2 (canvas 1464×1094, about your recording's size) I recorded 10.5 s on Julia: 2.5 s of continuous trackpad-style pinch (60 Ctrl+wheel events/s, zoom 1× → 90×), then a drag pan. A contact sheet of the gesture and the frames that scored worst on an automatic row-continuity check show no seam; the picture goes from the scaled preview to sharp in one step. The automatic check alone can't prove it (busy fractal texture and flat areas both fool it), so the frames were inspected by eye. Not done: the same recording on Mandelbrot in a real browser (it uses the same `escapeView.js`, covered by the unit tests), and on a real phone. Test recordings deleted.
+
+---
+
 ## Implementation notes
 
 - Analysis findings C1, C2, I1, I2 and A1 were fixed while building: Ulam spiral hover readout, Lorenz start-point knobs (`x0`, `y0`, `z0`), presets may carry `input`, modules can call `ctx.setValues`, and the chaos game has a "Center is a target too" toggle for the Vicsek preset.
@@ -274,6 +322,9 @@ description: "Task list for the Visualization Studio"
 - **US5 (Phase 9)**: after T088 (event contract); independent of US6
 - **US6 (Phase 10)**: after T089 and T091; independent of US5
 - **Polish (Phase 11)**: after US5 and US6
+- **Scope update (Phase 12)**: none; T108 first so FR-030 / SC-009 exist when T109 and T110 reference them
+- **US7 (Phase 13)**: after T108; builds on US5's pinch handling in `escapeView.js` (already done)
+- **Polish (Phase 14)**: after US7
 
 ### Within phases
 
@@ -284,6 +335,7 @@ description: "Task list for the Visualization Studio"
 - T067 → T071; T075 → T076, T078
 - US5: T092, T093 first (they fail until implemented); T094 → T095 (same file); T096 after T094; T097 independent; T098 after T095 (same file); T099 any time
 - US6: T100, T101 first; T102 → T103 → T104 → T105
+- US7: T111 → T112 (the escapeView tests need the richer stub); T113 with T117; T114 → T115 → T116 → T119 (same file); T117 and T118 independent of the escapeView work; T115 uses `poolSize()` from T118
 
 ### Story completion order
 
@@ -296,6 +348,9 @@ Setup → Foundational → US1 (MVP) → US2 ─┐
 Second increment:
 Scope update (Phase 8) ─┬→ US5 zoom fix (P1) ─┐
                         └→ US6 video (P3) ────┴→ Polish (Phase 11)
+
+Third increment:
+Scope update (Phase 12) → US7 zoom without tearing (P1) → Polish (Phase 14)
 ```
 
 ## Parallel Execution Examples
@@ -321,6 +376,12 @@ Algorithms:      T046 T047
 
 **Phase 8**: T088 · T089 · T090 · T091 together after T087.
 
+**US7**:
+```text
+T111 canvasStub.js · T113 escapeBand.test.js · T117 kernel.js · T118 workerPool.js   (together)
+then T112 → T114 → T115 → T116 → T119   (escapeView.js, in order)
+```
+
 **US5 and US6 side by side** (different files until T098/T105 both touch `Viewer.jsx`, so finish one of those before the other):
 ```text
 US5: T092 escapeView.test.js · T093 studio.test.jsx · T096 escapeView.js · T097 workerPool.js
@@ -344,6 +405,12 @@ US6: T100 videoRecorder.test.js · T102 exportFile.js → T103 videoRecorder.js
 5. Polish.
 
 Each story leaves the playground untouched and `npm test` green.
+
+### Third increment
+
+1. Phase 12 (docs).
+2. US7: the smallest useful slice is T114 alone (instant scaled preview on every input): it removes the old-view seam during gestures even before the two-pass rendering lands. Then T115 + T116 for the clean sharp swap, then the speedups T117/T118.
+3. Phase 14.
 
 ### Second increment
 

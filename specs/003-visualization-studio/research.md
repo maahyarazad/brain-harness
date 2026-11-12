@@ -96,3 +96,23 @@ All Technical Context items were resolved; no NEEDS CLARIFICATION remain.
 | Phyllotaxis | Point i at angle i·α, radius c·√i |
 | Sorting | Each algorithm is a generator yielding `compare`/`swap`/`set` operations; the viewer applies k ops per frame by speed; counters from ops |
 | Maze | Generators (recursive backtracker, randomized Prim's, Wilson's) as step generators; solvers (A*, Dijkstra, BFS) as step generators exposing frontier and visited sets |
+
+## R14. Fractal zoom rendering: browser, not server
+
+**Problem** (seen in a 6 s Julia zoom recording at 1398×1048): the escape-time picture was drawn as 16-row bands that appeared top to bottom as workers finished them. Each zoom event cancelled the render and started a new sweep, so most frames showed the new view at the top and the old view below a seam.
+
+**Measurements** (`escapeBand`, one core, 1398×1048, 300 iterations): Julia default 157 ms, Julia 8× 438 ms, Mandelbrot default 228 ms, Mandelbrot seahorse valley 50× 998 ms. The same views at quarter resolution: 9–63 ms.
+
+**Decision**: keep rendering in the browser and change how partial results are shown:
+
+1. On every zoom/pan input, draw the last finished frame scaled and shifted to the new view (instant, one view on screen).
+2. Compute the whole view at quarter resolution, split across the worker pool, and draw it scaled up in one call.
+3. After 150 ms without input, compute full resolution off-screen and swap it in with one draw.
+
+Plus cheaper work: skip the Mandelbrot main cardioid and period-2 bulb, stop early on periodic orbits, and use up to 8 workers.
+
+**Alternatives considered**:
+
+- *Server-side rendering on the EC2 instance*: rejected. The tearing comes from showing partial results, which a faster CPU doesn't remove. Each zoom step would add a network round trip plus a 1–3 MB image transfer, slower than computing locally. The single instance's CPU is shared among all users. FR-003 requires the studio to work without the server.
+- *WebGL fragment shader*: rejected for now. Float32 precision blurs the picture past about 10⁵× zoom, and the studio zooms to 10¹³×.
+
