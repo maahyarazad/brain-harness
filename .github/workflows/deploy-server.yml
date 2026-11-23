@@ -101,16 +101,30 @@ jobs:
 
       - name: Install the nginx site
         run: |
-          # After the restart above, so nginx never forwards pages to a server that can't serve them yet
-          ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "
+          # After the restart above, so nginx never forwards pages to a server that can't serve them yet.
+          # The config is tested before it goes live, and the old one is put back if the test fails.
+          # HTTPS lines ("# ssl") are kept only when the domain's certificate exists on the instance.
+          ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" '
             set -e
-            sudo tee /etc/nginx/sites-available/brain-harness > /dev/null
-            sudo nginx -t
-            sudo systemctl reload nginx
-          " < deploy/nginx-brain-harness.conf
+            site=/etc/nginx/sites-available/brain-harness
+            new=$(cat)
+            if ! sudo test -f /etc/letsencrypt/live/visualization-playground.space/fullchain.pem; then
+              echo "No certificate for visualization-playground.space yet: installing the HTTP-only site." >&2
+              new=$(printf "%s\n" "$new" | grep -v "# ssl")
+            fi
+            [ -f $site ] && sudo cp $site $site.bak
+            printf "%s\n" "$new" | sudo tee $site > /dev/null
+            if sudo nginx -t; then
+              sudo systemctl reload nginx
+            else
+              echo "nginx rejected the new site: putting the old one back." >&2
+              [ -f $site.bak ] && sudo cp $site.bak $site
+              exit 1
+            fi
+          ' < deploy/nginx-brain-harness.conf
 
-      # - name: Check public health endpoint
-      #   run: curl -fsS --retry 5 --retry-delay 3 "$CORS_ORIGIN/health"
+      - name: Check public health endpoint
+        run: curl -fsS --retry 5 --retry-delay 3 "$CORS_ORIGIN/health"
 
       - name: Check the site pages are served by the server
         run: |
