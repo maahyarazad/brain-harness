@@ -238,6 +238,45 @@ describe("zoom without tearing", () => {
     expect(draws(log)).toHaveLength(0);
   });
 
+  test("isBusy stays true until the sharp picture is on screen", async () => {
+    const { inst } = controlledSetup();
+    expect(inst.isBusy()).toBe(true);
+    await releaseAll();
+    expect(inst.isBusy()).toBe(false);
+    inst.pointer({ type: "pinch", x: 200, y: 150, scale: 1.2 });
+    expect(inst.isBusy()).toBe(true);
+    driver.advanceFrames(1);
+    pending().forEach((j) => j.release());
+    await flush();
+    expect(inst.isBusy()).toBe(true); // preview done, sharp pass not started yet
+    vi.advanceTimersByTime(SETTLE_MS);
+    expect(inst.isBusy()).toBe(true);
+    await releaseAll();
+    expect(inst.isBusy()).toBe(false);
+    inst.pointer({ type: "pinch", x: 200, y: 150, scale: 1.2 });
+    inst.destroy();
+    expect(inst.isBusy()).toBe(false);
+  });
+
+  test("a sweep step keeps the sharp picture and swaps in the new one, with no blurry pass", async () => {
+    const { inst, log, handle } = controlledSetup();
+    await releaseAll();
+    log.length = 0;
+    const start = jobs.length;
+    const cfg = { ...defaultsOf(mandelbrot), view: { cx: -0.5, cy: 0, zoom: 1.1 } };
+    inst.update(cfg, ["view"], { sweep: true });
+    // At once: the old sharp picture scaled to the new view.
+    expect(draws(log)).toHaveLength(1);
+    expect(draws(log)[0].dest[2]).toBeCloseTo(W * 1.1, 6);
+    // Only full-resolution work was started.
+    expect(jobs.slice(start).every((j) => j.args.width === W)).toBe(true);
+    expect(inst.isBusy()).toBe(true);
+    await releaseAll();
+    expect(draws(log).at(-1).dest).toEqual([0, 0, W, H]);
+    expect(inst.isBusy()).toBe(false);
+    handle.dispose();
+  });
+
   test("panning follows the pointer live, then sharpens in one step", async () => {
     const { inst, log } = controlledSetup();
     await releaseAll();

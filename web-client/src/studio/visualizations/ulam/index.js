@@ -50,6 +50,10 @@ export default {
     { id: "sacks", name: "Sacks spiral", values: { shape: "sacks", size: 60000, dot: 1 } },
     { id: "start41", name: "Start at 41", values: { shape: "square", start: 41, size: 10000, dot: 3 } },
   ],
+  // Animated sweep: slide the starting number, so the diagonals of primes drift.
+  sweep: { periodMs: 30000, targets: [{ key: "start", mode: "log", min: 1, max: 5000 }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: {},
   create(canvas, config, ctx) {
     let lay = null;
     let primes = null;

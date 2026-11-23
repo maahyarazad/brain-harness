@@ -32,6 +32,10 @@ sudo systemctl enable brain-harness
 
 echo "==> Installing the nginx site"
 sudo cp "$HERE/nginx-brain-harness.conf" /etc/nginx/sites-available/brain-harness
+# The HTTPS lines are only valid once the certificate exists
+if ! sudo test -f /etc/letsencrypt/live/visualization-playground.space/fullchain.pem; then
+  sudo sed -i '/# ssl$/d' /etc/nginx/sites-available/brain-harness
+fi
 sudo ln -sf /etc/nginx/sites-available/brain-harness /etc/nginx/sites-enabled/brain-harness
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t

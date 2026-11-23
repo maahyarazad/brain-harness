@@ -6,6 +6,7 @@ on:
     paths:
       - "server/**"
       - "deploy/brain-harness.service"
+      - "deploy/nginx-brain-harness.conf"
       - ".github/workflows/deploy-server.yml"
   workflow_dispatch:
 
@@ -17,7 +18,9 @@ env:
   EC2_HOST: 13.63.233.210
   EC2_USER: ubuntu
   APP_DIR: /var/www/brain-harness/server
-  CORS_ORIGIN: http://ec2-13-63-233-210.eu-north-1.compute.amazonaws.com
+  CORS_ORIGIN: https://visualization-playground.space
+  # Where the "Deploy web client" workflow puts the built client; the server serves it
+  WEB_ROOT: /var/www/brain-harness/web-client
 
 jobs:
   deploy:
@@ -71,8 +74,20 @@ jobs:
             "ANTHROPIC_MODEL=$ANTHROPIC_MODEL" \
             "PORT=3000" \
             "HOST=127.0.0.1" \
-            "CORS_ORIGIN=$CORS_ORIGIN" \
+            "WEB_ROOT=$WEB_ROOT" \
           | ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "umask 077 && cat > $APP_DIR/.env"
+
+      - name: Install the systemd unit
+        run: |
+          # Keeps the unit in step with deploy/brain-harness.service, and recreates it
+          # if the instance never had it ("Unit brain-harness.service not found").
+          # Sent over stdin, like the .env above.
+          ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "
+            set -e
+            sudo tee /etc/systemd/system/brain-harness.service > /dev/null
+            sudo systemctl daemon-reload
+            sudo systemctl enable brain-harness
+          " < deploy/brain-harness.service
 
       - name: Install dependencies and restart
         run: |
@@ -84,5 +99,36 @@ jobs:
             curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3000/health
           "
 
+      - name: Install the nginx site
+        run: |
+          # After the restart above, so nginx never forwards pages to a server that can't serve them yet.
+          # The config is tested before it goes live, and the old one is put back if the test fails.
+          # HTTPS lines ("# ssl") are kept only when the domain's certificate exists on the instance.
+          ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" '
+            set -e
+            site=/etc/nginx/sites-available/brain-harness
+            new=$(cat)
+            if ! sudo test -f /etc/letsencrypt/live/visualization-playground.space/fullchain.pem; then
+              echo "No certificate for visualization-playground.space yet: installing the HTTP-only site." >&2
+              new=$(printf "%s\n" "$new" | grep -v "# ssl")
+            fi
+            [ -f $site ] && sudo cp $site $site.bak
+            printf "%s\n" "$new" | sudo tee $site > /dev/null
+            if sudo nginx -t; then
+              sudo systemctl reload nginx
+            else
+              echo "nginx rejected the new site: putting the old one back." >&2
+              [ -f $site.bak ] && sudo cp $site.bak $site
+              exit 1
+            fi
+          ' < deploy/nginx-brain-harness.conf
+
       - name: Check public health endpoint
         run: curl -fsS --retry 5 --retry-delay 3 "$CORS_ORIGIN/health"
+
+      - name: Check the site pages are served by the server
+        run: |
+          curl -fsS "$CORS_ORIGIN/tetris-loop.lottie" -o /dev/null
+          # The pages come from the client's build: before the first "Deploy web client" there are none
+          curl -fsS "$CORS_ORIGIN/" | grep -q 'id="boot-loader"' \
+            || echo "::warning::/ has no loading screen: run the \"Deploy web client\" workflow (the server serves the client from WEB_ROOT)."

@@ -1,4 +1,4 @@
-/* Visualization Studio. Uses the playground's CSS variables for light and dark themes. */
+/* Visualization Playground (the studio). Uses the playground's CSS variables for light and dark themes. */
 
 .studio {
   max-width: 1280px;
@@ -43,11 +43,27 @@
 }
 
 .studio-header h1 a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   color: inherit;
   text-decoration: none;
 }
 
-.studio-header .btn {
+.app-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex: none;
+}
+
+.app-byline {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.studio-header .btn,
+a.btn {
   text-decoration: none;
   color: inherit;
 }
@@ -201,6 +217,21 @@
   font-size: 40px;
   color: rgba(255, 255, 255, 0.92);
   margin-bottom: 4px;
+}
+
+/* The sample picture covers the symbol once it has loaded. */
+.card-thumb {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
 }
 
 .cat-number-patterns .card-thumb { background: linear-gradient(135deg, #3e4989, #1f9e89); }
@@ -678,5 +709,167 @@
   .card,
   .progress-bar {
     transition: none;
+  }
+}
+
+/* Full screen button: bottom right of the canvas, same dark glass look as the zoom buttons. */
+.fullscreen-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: rgba(20, 20, 26, 0.72);
+  color: #f2f2f5;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fullscreen-btn:hover {
+  background: rgba(40, 40, 52, 0.9);
+}
+
+.fullscreen-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--accent);
+}
+
+@media (pointer: coarse) {
+  .fullscreen-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* While the canvas is full screen it fills the screen and centres the picture. */
+.canvas-wrap:fullscreen {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  display: grid;
+  place-items: center;
+  background: #0f0f12;
+}
+
+.canvas-wrap:-webkit-full-screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  display: grid;
+  place-items: center;
+  background: #0f0f12;
+}
+
+.canvas-wrap:fullscreen .viz-canvas {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.canvas-wrap:-webkit-full-screen .viz-canvas {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* ---- Animated sweep: mark the settings the sweep is moving ---------------- */
+
+.sweeping .knob {
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+}
+
+.sweep-badge {
+  display: inline-block;
+  line-height: 1.5;
+  margin-top: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--accent-text);
+  background: var(--accent);
+  animation: sweep-pulse 2s ease-in-out infinite;
+}
+
+/* The tick box in front of a swept setting's badge: take the setting out of the sweep. */
+.sweep-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  cursor: pointer;
+}
+
+.sweep-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.sweep-toggle .sweep-badge {
+  margin-top: 0;
+}
+
+/* Out of the sweep: a quiet label, no pulse, no accent colour. */
+.sweep-badge-off {
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  animation: none;
+}
+
+/* Over the (always dark) canvas, next to the zoom buttons. It is a button: it
+   switches the zoom in or out of the sweep. */
+.sweep-badge-zoom {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  margin: 0;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: pointer;
+  color: #f2f2f5;
+  background: rgba(20, 20, 26, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.sweep-badge-zoom.sweep-badge-off {
+  color: rgba(242, 242, 245, 0.8);
+  background: rgba(20, 20, 26, 0.72);
+  border-style: dashed;
+}
+
+.sweep-badge-zoom:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--accent);
+}
+
+@media (pointer: coarse) {
+  .sweep-toggle input {
+    width: 22px;
+    height: 22px;
+  }
+  .sweep-badge-zoom {
+    min-height: 36px;
+    padding: 4px 12px;
+  }
+}
+
+@keyframes sweep-pulse {
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweep-badge {
+    animation: none;
   }
 }

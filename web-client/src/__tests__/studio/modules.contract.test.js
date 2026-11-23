@@ -59,6 +59,29 @@ describe.each(CATALOG.map((e) => [e.id, e]))("%s", (id, entry) => {
     }
   });
 
+  test("the catalog-picture recipe is valid", () => {
+    const r = module.thumbnail;
+    if (!r) return;
+    if (r.presetId) expect(module.presets.map((p) => p.id)).toContain(r.presetId);
+    const base = r.presetId ? applyPreset(module, r.presetId).values : defaultsOf(module).values;
+    expect(validateConfig(module, { values: { ...base, ...r.values }, seed: 1 }).replaced).toEqual([]);
+    if (r.view) expect(module.validateView(r.view)).toMatchObject({ value: r.view, replaced: [] });
+    if (r.quality !== undefined) {
+      expect(r.quality).toBeGreaterThan(0.3);
+      expect(r.quality).toBeLessThanOrEqual(1);
+    }
+    if (r.steps !== undefined) {
+      expect(module.animated).toBe(true);
+      // "done" steps until isDone(), which run-kind sweep modules implement.
+      if (r.steps === "done") expect(module.sweep?.kind).toBe("run");
+      else {
+        expect(Number.isInteger(r.steps)).toBe(true);
+        expect(r.steps).toBeGreaterThanOrEqual(0);
+        expect(r.steps).toBeLessThanOrEqual(20000);
+      }
+    }
+  });
+
   test("runs create → update → step → resize → destroy without Math.random", async () => {
     const spy = vi.spyOn(Math, "random");
     const cfg = testConfig(module);

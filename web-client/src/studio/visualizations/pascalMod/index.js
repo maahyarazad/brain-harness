@@ -21,6 +21,10 @@ export default {
     { id: "mod3", name: "Mod 3", values: { modulus: 3, rows: 243 } },
     { id: "mod6", name: "Mod 6", values: { modulus: 6, rows: 512 } },
   ],
+  // One modulus every 1.5 s, then back to 2.
+  sweep: { periodMs: 16500, targets: [{ key: "modulus", mode: "steps", list: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] }] },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { values: { modulus: 2, rows: 256 } },
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, function* (g, cfg, _ctx, { w, h }) {
       const { modulus, rows, palette } = cfg.values;

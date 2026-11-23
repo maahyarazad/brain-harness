@@ -124,7 +124,7 @@ export function applyPreset(module, presetId) {
   const preset = (module.presets ?? []).find((p) => p.id === presetId);
   if (!preset) return null;
   const values = { ...defaultValues(module), ...preset.values };
-  return { values, input: preset.input ?? null, presetId };
+  return { values, input: preset.input ?? null, view: preset.view ? { ...preset.view } : null, presetId };
 }
 
 export function diffFromDefaults(module, values) {

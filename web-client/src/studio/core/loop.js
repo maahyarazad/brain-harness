@@ -6,6 +6,7 @@ export const SPEEDS = [0.25, 0.5, 1, 2, 4, 8, 16];
 export function createLoop({
   step,
   render,
+  onFrame = () => {},
   baseSteps = 1,
   onStateChange = () => {},
   raf = (cb) => globalThis.requestAnimationFrame(cb),
@@ -29,6 +30,7 @@ export function createLoop({
       acc -= 1;
       n++;
     }
+    onFrame();
     render();
     frame = raf(tick);
   }

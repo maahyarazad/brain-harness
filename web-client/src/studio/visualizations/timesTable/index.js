@@ -25,6 +25,8 @@ export default {
     { id: "flower", name: "Flower (m = 34)", values: { m: 34, N: 300, opacity: 0.4 } },
     { id: "sweep", name: "Animated sweep", values: { m: 2, animate: true, rate: 0.005 } },
   ],
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { values: { m: 2, N: 300 } },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

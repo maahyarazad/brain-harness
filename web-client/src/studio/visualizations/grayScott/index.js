@@ -35,6 +35,15 @@ export default {
     { id: "holes", name: "Holes", values: { feed: 0.039, kill: 0.058 } },
     { id: "waves", name: "Waves", values: { feed: 0.014, kill: 0.054 } },
   ],
+  sweep: {
+    periodMs: 120000,
+    targets: [
+      { key: "feed", mode: "wave", min: 0.03, max: 0.06 },
+      { key: "kill", mode: "wave", min: 0.058, max: 0.064, phase: 0.25 },
+    ],
+  },
+  // The catalog card's sample picture (contracts/thumbnail.md).
+  thumbnail: { presetId: "maze", steps: 1500 },
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;

@@ -16,7 +16,7 @@ test("export → import round trip", async () => {
 
 test("wrong format, version, and bad JSON are rejected", async () => {
   expect((await parseImport("{", load)).ok).toBe(false);
-  expect((await parseImport(JSON.stringify({ format: "other" }), load)).reason).toMatch(/isn't a Visualization Studio/);
+  expect((await parseImport(JSON.stringify({ format: "other" }), load)).reason).toMatch(/isn't a Visualization Playground/);
   expect((await parseImport(JSON.stringify({ format: "vizstudio", formatVersion: 9, items: [] }), load)).reason).toMatch(/newer/);
 });
 

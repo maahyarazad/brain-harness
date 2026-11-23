@@ -3,16 +3,48 @@
 /**
  * A static (non-animated) instance. draw(g, config, ctx, size) may return a
  * generator, which runs progressively and is cancelled on the next redraw.
+ *
+ * Updates from an animated sweep (update(c, keys, { sweep: true })) draw into an
+ * off-screen canvas and copy the finished picture in one draw, so a sweep never
+ * shows a blank or half-drawn frame. Other updates draw progressively on screen,
+ * which gives quick feedback while dragging a slider.
  */
 export function staticInstance(canvas, config, ctx, draw) {
   const g = canvas.getContext("2d");
   let cfg = config;
   let task = null;
-  function redraw() {
+  let off = null;
+  function redraw({ offscreen = false } = {}) {
     task?.cancel();
     task = null;
-    const r = draw(g, cfg, ctx, { w: canvas.width, h: canvas.height });
-    if (r && typeof r.next === "function") task = ctx.progressive(r);
+    let target = g;
+    if (offscreen) {
+      off ??= document.createElement("canvas");
+      if (off.width !== canvas.width || off.height !== canvas.height) {
+        off.width = canvas.width;
+        off.height = canvas.height;
+      }
+      target = off.getContext("2d");
+    }
+    const show = () => {
+      if (target === g) return;
+      g.drawImage(off, 0, 0);
+    };
+    const r = draw(target, cfg, ctx, { w: canvas.width, h: canvas.height });
+    if (r && typeof r.next === "function") {
+      const t = ctx.progressive(r);
+      task = t;
+      t.promise.then(
+        () => {
+          if (task !== t) return;
+          task = null;
+          show();
+        },
+        () => {}
+      );
+    } else {
+      show();
+    }
   }
   redraw();
   return {
@@ -20,15 +52,18 @@ export function staticInstance(canvas, config, ctx, draw) {
       return cfg;
     },
     redraw,
-    update(c) {
+    update(c, _changed, meta) {
       cfg = c;
-      redraw();
+      redraw({ offscreen: Boolean(meta?.sweep) });
     },
+    /** True while a progressive drawing is still running. */
+    isBusy: () => task !== null,
     resize() {
       redraw();
     },
     destroy() {
       task?.cancel();
+      task = null;
     },
   };
 }

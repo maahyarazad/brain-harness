@@ -290,18 +290,37 @@ export function createEscapeInstance(canvas, config, ctx, { getC, span = 3, onSh
     drag = null;
   }
 
+  /**
+   * A step of an animated sweep: keep the last sharp picture on screen (mapped
+   * onto the new view if the view moved) and swap in the new sharp picture in
+   * one draw. No blurry preview in between, so a sweep doesn't flicker.
+   */
+  function sweepStep() {
+    version++;
+    cancelFull();
+    if (frame !== null) caf(frame);
+    frame = null;
+    previewWanted = false;
+    drawPreview();
+    reportZoom();
+    startFull();
+  }
+
   renderNow();
 
   return {
-    update(c) {
+    update(c, _changed, meta) {
       cfg = c;
       if (c.view) {
         view = { ...c.view };
         atLimit = view.zoom >= MAX_ZOOM;
       }
       // The old picture stays on screen until the new settings' preview replaces it.
-      renderNow();
+      if (meta?.sweep && best) sweepStep();
+      else renderNow();
     },
+    /** True until the sharp picture for the current settings is on screen. */
+    isBusy: () => Boolean(previewTasks || fullTasks || settleTimer !== null || frame !== null),
     resize: renderNow,
     destroy() {
       destroyed = true;
