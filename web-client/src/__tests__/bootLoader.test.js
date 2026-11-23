@@ -25,7 +25,7 @@ afterEach(() => {
 test("writes the percentage into the page as assets load", async () => {
   const run = startLoader({ assets: [{ url: "/a.js", size: 100 }] });
   await run.progress.finished;
-  expect(document.getElementById("boot-percent").textContent).toBe("100%");
+  expect(document.getElementById("boot-percent").textContent).toBe("Loading assets 100%");
 });
 
 test("stays while #root is empty or has only the Suspense fallback", async () => {

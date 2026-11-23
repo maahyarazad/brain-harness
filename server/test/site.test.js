@@ -49,7 +49,7 @@ test("the root page is the client's page with the loading screen put in", async 
   assert.match(html, /<body>\s*<div id="boot-loader"/); // the loading screen comes first in <body>
   assert.ok(html.indexOf('id="boot-loader"') < html.indexOf('id="root"'));
   assert.match(html, /#boot-anim \{\s*width: 100px;\s*height: 100px;\s*max-width: 100px;\s*max-height: 100px;/);
-  assert.match(html, /id="boot-percent">0%</);
+  assert.match(html, /id="boot-percent">Loading assets 0%</);
   // scripts: the asset list, then the loading screen, then the app
   const list = html.indexOf("window.__BOOT_ASSETS__=");
   const boot = html.indexOf('src="/boot/index.js"');
@@ -78,18 +78,14 @@ test("HEAD works for pages", async () => {
   assert.equal(res.statusCode, 200);
 });
 
-test("the animation, the player and its wasm are served by the server", async () => {
-  const lottie = await get("/tetris-loop.lottie");
-  assert.equal(lottie.statusCode, 200);
-  assert.equal(lottie.rawPayload.subarray(0, 2).toString(), "PK"); // a .lottie file is a zip
-  const player = await get("/boot/dotlottie-wc.js");
-  assert.equal(player.statusCode, 200);
-  assert.match(player.headers["content-type"], /javascript/);
-  assert.match(player.body, /setWasmUrl/);
-  const wasm = await get("/boot/dotlottie-player.wasm");
-  assert.equal(wasm.statusCode, 200);
-  assert.match(wasm.headers["content-type"], /application\/wasm/);
-  for (const f of ["index.js", "loader.js", "progress.js"]) assert.equal((await get(`/boot/${f}`)).statusCode, 200, f);
+test("the loading screen's scripts are served by the server (the animation files are gone)", async () => {
+  for (const f of ["index.js", "loader.js", "progress.js"]) {
+    const res = await get(`/boot/${f}`);
+    assert.equal(res.statusCode, 200, f);
+    assert.match(res.headers["content-type"], /javascript/);
+  }
+  assert.equal((await get("/tetris-loop.lottie")).statusCode, 404);
+  assert.equal((await get("/boot/dotlottie-player.wasm")).statusCode, 404);
 });
 
 test("the client's files are served, and fingerprinted ones are cached for good", async () => {
@@ -137,7 +133,7 @@ test("without a built client there are no pages (and the server still starts)", 
   const empty = buildApp({ logger: false, corsOrigins: [], webRoot: path.join(dir, "nope") });
   await empty.ready();
   assert.equal((await empty.inject({ method: "GET", url: "/studio" })).statusCode, 404);
-  assert.equal((await empty.inject({ method: "GET", url: "/tetris-loop.lottie" })).statusCode, 200);
+  assert.equal((await empty.inject({ method: "GET", url: "/boot/index.js" })).statusCode, 200);
   await empty.close();
 });
 

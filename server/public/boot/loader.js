@@ -35,7 +35,7 @@ export function startLoader({ assets = [] } = {}) {
 
   const progress = createProgress(assets, {
     onProgress: ({ percent }) => {
-      if (percentEl) percentEl.textContent = `${formatPercent(percent)}%`;
+      if (percentEl) percentEl.textContent = `Loading assets ${formatPercent(percent)}%`;
     },
   });
   const check = () => {

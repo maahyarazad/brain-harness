@@ -47,7 +47,7 @@ export const LOADER_STYLE = `<style>
 
 export const LOADER_MARKUP = `<div id="boot-loader" role="status" aria-live="polite" aria-label="Loading">
       <div id="boot-anim"></div>
-      <span id="boot-percent">0%</span>
+      <span id="boot-percent">Loading assets 0%</span>
     </div>`;
 
 const MODULE_SCRIPT = '<script type="module"';
