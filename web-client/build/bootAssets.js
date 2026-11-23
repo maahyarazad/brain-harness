@@ -1,5 +1,6 @@
-// The list of assets the first screen needs, written into the HTML the server sends so
-// the loading screen (src/boot/) can show real progress. Built from the bundle: the entry
+// The list of assets the first screen needs, written to dist/boot-assets.json. The server
+// (server/src/routes/site.js) puts it into every page it sends, so the loading screen
+// (server/public/boot/) can show real progress. Built from the bundle: the entry
 // chunk and its static imports, the studio page chunk, their CSS, and the logo and catalog
 // pictures from public/. Visualization chunks and the Playground load on demand and are not
 // listed.
@@ -31,14 +32,6 @@ export function collectBootAssets(bundle, { publicFiles = [] } = {}) {
   return [...out.values()];
 }
 
-export function injectBootAssets(html, assets) {
-  if (!assets?.length) return html;
-  const json = JSON.stringify(assets).replace(/</g, "\\u003c");
-  const tag = `<script>window.__BOOT_ASSETS__=${json}</script>\n    `;
-  const i = html.indexOf('<script type="module"');
-  return i < 0 ? html : html.slice(0, i) + tag + html.slice(i);
-}
-
 /** /logo.png and /thumbs/*.webp from public/, with their sizes. */
 export function listPublicFiles(publicDir) {
   const files = [];
@@ -60,6 +53,9 @@ export function listPublicFiles(publicDir) {
   return files;
 }
 
+/** The file the server reads to put the list into every page. */
+export const BOOT_ASSETS_FILE = "boot-assets.json";
+
 export function bootAssets() {
   let publicDir;
   return {
@@ -67,12 +63,9 @@ export function bootAssets() {
     configResolved(config) {
       publicDir = config.publicDir;
     },
-    transformIndexHtml: {
-      order: "post",
-      handler(html, ctx) {
-        if (!ctx?.bundle) return html; // dev server: no bundle, so no list
-        return injectBootAssets(html, collectBootAssets(ctx.bundle, { publicFiles: listPublicFiles(publicDir) }));
-      },
+    generateBundle(_options, bundle) {
+      const list = collectBootAssets(bundle, { publicFiles: listPublicFiles(publicDir) });
+      this.emitFile({ type: "asset", fileName: BOOT_ASSETS_FILE, source: JSON.stringify(list) });
     },
   };
 }

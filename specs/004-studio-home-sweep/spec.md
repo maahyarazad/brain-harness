@@ -215,6 +215,8 @@ When someone opens the site, the page the server sends shows a centered Tetris a
 - **FR-036**: The percentage MUST never go down, MUST reach 100 only when loading is finished, and a failed file MUST NOT leave it stuck.
 - **FR-037**: Nothing for the loading screen may be requested from a third-party host.
 - **FR-038**: With reduced motion the animation MUST NOT play, and the percentage MUST still update.
+- **FR-039**: The Node server MUST serve the website: every page address, the client's files and the loading screen's files (`/tetris-loop.lottie`, `/boot/…`). The loading screen MUST be added by the server to the pages it sends, not be part of the client's build.
+- **FR-040**: `/api`, `/health` and `/mcp` MUST behave as before, and an address with a file extension that doesn't exist MUST be a 404, not a page.
 
 ### Key Entities
 

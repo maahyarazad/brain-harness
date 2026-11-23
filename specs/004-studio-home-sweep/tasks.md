@@ -697,3 +697,20 @@ Last:   T073 (nginx/workflow check) ‖ T074 (docs)
 ### Strategy
 
 Ship in one change. If the wasm file turns out too large to be worth self-hosting (T066), the fallback is a CSS-only Tetris-coloured spinner with the same percentage; say so in `research.md` rather than loading from a CDN.
+
+
+---
+
+## Phase 12: User Story 8 - The Node server serves the site and the loading screen (Priority: P2)
+
+**Goal**: The loading screen and the landing page are handled by the Node server, not the client. `tetris-loop.lottie` lives in the server. The server answers `/` and every other page with the client's page plus the loading screen; nginx only forwards requests. (Replaces where US7 put things; the behaviour of the screen is unchanged.)
+
+**Independent Test**: `npm run build` in `web-client/`, `npm start` in `server/`, open http://127.0.0.1:3000 (throttle the network and disable the cache): the loading screen with a rising percentage, then the catalog. `curl -s localhost:3000/studio/julia` has the Julia preview tags and the loading screen. `/tetris-loop.lottie` comes from the server.
+
+- [X] T076 [US8] Install `@fastify/static` in `server/`. Move `tetris-loop.lottie` to `server/public/tetris-loop.lottie`; the loading screen's scripts (`progress.js`, `loader.js`, `index.js`) and the vendored player and wasm to `server/public/boot/`, with a `README.md` giving the package versions. Make `index.js` load `./dotlottie-wc.js` and `/boot/dotlottie-player.wasm`.
+- [X] T077 [P] [US8] Create `server/src/site/page.js` (`renderPage(shell, assets)`: loading screen styles, markup at the start of `<body>`, the asset list and `/boot/index.js` before the client's module scripts; `<`-safe JSON) and `server/src/routes/site.js` (static files from `public/` and `WEB_ROOT`, `pageFileFor`, pages via the not-found handler with `og/<path>.html` then `index.html`, `immutable` caching for `assets/`, 404 JSON for other misses). Add `webRoot` and `publicDir` to `server/src/config.js`, register the routes in `server/src/app.js`, and add `WEB_ROOT` to `server/.env.example`.
+- [X] T078 [P] [US8] Create `server/test/site.test.js` (13 tests: loading screen order and 100 px box, og pages versus site page, query string, HEAD, lottie/player/wasm served, immutable assets, API and health unchanged, 404 for files and other methods, path traversal, `pageFileFor`, no build present, broken list).
+- [X] T079 [US8] In `web-client/`: take the loading screen out of `index.html`; make `build/bootAssets.js` emit `dist/boot-assets.json` (no HTML editing); remove `@lottiefiles/dotlottie-wc`; keep the boot tests (`src/__tests__/bootProgress.test.js`, `bootLoader.test.js`, `bootManifest.test.js`), importing the server's files; remove the loader test from `openGraph.test.js`.
+- [X] T080 [US8] Update `deploy/nginx-brain-harness.conf` (forward `/` to Node, gzip, no `root` or `try_files`); `.github/workflows/deploy-server.yml` (pass `WEB_ROOT`, install the nginx site after the restart, trigger on the nginx file, check `/tetris-loop.lottie` and the loading screen); `.github/workflows/deploy-web-client.yml` (checks now go through the server).
+- [X] T081 [P] [US8] Update `README.md`, `research.md` (R13) and `spec.md` (FR-039, FR-040).
+- [ ] T082 [US8] Run the Independent Test above in a browser and after a real deploy. **Status:** automated parts done (`npm test` in `server/`: 33 pass; `npx vitest run` in `web-client/`: 675 pass; build OK; the real server on the real build returned the right pages, preview tags, lottie and wasm). Still to do: a look in a browser, and the first deploy. **Deploy order:** run "Deploy server" first (it installs the new nginx config), then "Deploy web client". Until the first web client deploy after this change, `WEB_ROOT` has the old `index.html` without `boot-assets.json`: pages still load, with the loading screen at 0 % and no list.

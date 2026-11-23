@@ -6,6 +6,7 @@ on:
     paths:
       - "server/**"
       - "deploy/brain-harness.service"
+      - "deploy/nginx-brain-harness.conf"
       - ".github/workflows/deploy-server.yml"
   workflow_dispatch:
 
@@ -18,6 +19,8 @@ env:
   EC2_USER: ubuntu
   APP_DIR: /var/www/brain-harness/server
   CORS_ORIGIN: http://ec2-13-63-233-210.eu-north-1.compute.amazonaws.com
+  # Where the "Deploy web client" workflow puts the built client; the server serves it
+  WEB_ROOT: /var/www/brain-harness/web-client
 
 jobs:
   deploy:
@@ -72,6 +75,7 @@ jobs:
             "PORT=3000" \
             "HOST=127.0.0.1" \
             "CORS_ORIGIN=$CORS_ORIGIN" \
+            "WEB_ROOT=$WEB_ROOT" \
           | ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "umask 077 && cat > $APP_DIR/.env"
 
       - name: Install the systemd unit
@@ -96,5 +100,22 @@ jobs:
             curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3000/health
           "
 
+      - name: Install the nginx site
+        run: |
+          # After the restart above, so nginx never forwards pages to a server that can't serve them yet
+          ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "
+            set -e
+            sudo tee /etc/nginx/sites-available/brain-harness > /dev/null
+            sudo nginx -t
+            sudo systemctl reload nginx
+          " < deploy/nginx-brain-harness.conf
+
       - name: Check public health endpoint
         run: curl -fsS --retry 5 --retry-delay 3 "$CORS_ORIGIN/health"
+
+      - name: Check the site pages are served by the server
+        run: |
+          curl -fsS "$CORS_ORIGIN/tetris-loop.lottie" -o /dev/null
+          # The pages come from the client's build: before the first "Deploy web client" there are none
+          curl -fsS "$CORS_ORIGIN/" | grep -q 'id="boot-loader"' \
+            || echo "::warning::/ has no loading screen: run the \"Deploy web client\" workflow (the server serves the client from WEB_ROOT)."

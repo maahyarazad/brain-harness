@@ -1,6 +1,6 @@
 // @vitest-environment node
-// The list of first-screen assets written into the page (build/bootAssets.js).
-import { collectBootAssets, injectBootAssets } from "../../build/bootAssets.js";
+// The list of first-screen assets written to dist/boot-assets.json for the server (build/bootAssets.js).
+import { collectBootAssets, bootAssets, BOOT_ASSETS_FILE } from "../../build/bootAssets.js";
 
 const chunk = (o) => ({ type: "chunk", code: "x".repeat(o.bytes ?? 10), imports: [], dynamicImports: [], viteMetadata: { importedCss: new Set() }, ...o });
 
@@ -28,15 +28,14 @@ test("lists the entry, its imports, the studio chunk, the CSS and the public fil
   expect(urls.some((u) => u.includes("mandelbrot") || u.includes("App-"))).toBe(false);
 });
 
-test("injects the list before the first module script and escapes <", () => {
-  const html = '<head></head><body><div id="root"></div><script type="module" src="/a.js"></script></body>';
-  const out = injectBootAssets(html, [{ url: "/a</script>.js", size: 1 }]);
-  expect(out.indexOf("__BOOT_ASSETS__")).toBeLessThan(out.indexOf('<script type="module"'));
-  expect(out).not.toContain("</script>.js");
-  expect(out).toContain("\\u003c");
-});
-
-test("does nothing for an empty list", () => {
-  const html = "<body><script type=\"module\" src=\"/a.js\"></script></body>";
-  expect(injectBootAssets(html, [])).toBe(html);
+test("the plugin emits the list as boot-assets.json", () => {
+  const plugin = bootAssets();
+  plugin.configResolved({ publicDir: "/nonexistent-public-dir" }); // no public files: just the bundle's
+  const emitted = [];
+  plugin.generateBundle.call({ emitFile: (f) => emitted.push(f) }, {}, bundle);
+  expect(emitted).toHaveLength(1);
+  expect(emitted[0]).toMatchObject({ type: "asset", fileName: BOOT_ASSETS_FILE });
+  const list = JSON.parse(emitted[0].source);
+  expect(list.map((a) => a.url)).toContain("/assets/index-1.js");
+  expect(list.every((a) => a.url.startsWith("/") && a.size > 0)).toBe(true);
 });

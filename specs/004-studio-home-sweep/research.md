@@ -191,3 +191,13 @@ User knob changes keep today's progressive drawing for quick feedback. `sweep.co
 - **Dev server:** no list, so the loader leaves when the app mounts.
 - **nginx:** serves `.lottie` as a static file (`application/octet-stream`) and `.wasm` as `application/wasm` (default `mime.types`); the deploy workflow now fetches both.
 
+## R13: The Node server owns the landing page and the loading screen (User Story 8, replaces parts of R12)
+
+- **Why:** the loading screen and the landing page should be handled by the server, not baked into the client. The client's build is now only the app; the server decides what each address returns.
+- **Routes** (`server/src/routes/site.js`, `@fastify/static`): files come from `server/public/` (the loading screen: `/tetris-loop.lottie`, `/boot/*`) and from `WEB_ROOT` (the client's `dist/`, rsynced there by the web client workflow). Every page address (`/`, `/studio`, `/studio/<id>`, `/playground`, any path without a file extension, except `/api`, `/health`, `/mcp`) returns the client's page with the loading screen put in (`server/src/site/page.js`). Like the nginx rule it replaces, `og/<path>.html` is used when it exists (link previews), else `index.html`. Pages are read on each request, because the client is deployed without restarting the server. Fingerprinted `assets/*` get `immutable` caching; pages are `no-cache`.
+- **The list for the percentage:** `web-client/build/bootAssets.js` now writes `dist/boot-assets.json` instead of editing the HTML; the server injects it as `window.__BOOT_ASSETS__`.
+- **Loading screen code:** plain browser JavaScript in `server/public/boot/` (no build step), with the player and wasm vendored there from the npm packages (versions in `server/public/boot/README.md`). The client no longer depends on `@lottiefiles/dotlottie-wc`. Its tests stay in `web-client/src/__tests__/boot*.test.js` (jsdom), importing the server's files.
+- **nginx** only forwards everything to Node (and gzips). The deploy server workflow installs that config after the restart, and passes `WEB_ROOT`.
+- **Local use:** `npm run build` in `web-client/`, then the server serves it at http://127.0.0.1:3000. `npm run dev` in `web-client/` (Vite) has no loading screen.
+- **Trade-off:** the Node process now serves static files, which nginx did faster. Fine at this traffic; nginx gzip stays on.
+

@@ -1,4 +1,5 @@
-import { createProgress, formatPercent } from "../../boot/progress.js";
+// The loading screen's code lives in the server (server/public/boot/); it is tested here because this suite has jsdom.
+import { createProgress, formatPercent } from "../../../server/public/boot/progress.js";
 
 /** A fetch whose responses stream the given chunk sizes. */
 function streamFetch(table) {

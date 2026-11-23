@@ -62,12 +62,3 @@ test("the logo and site picture exist", () => {
     expect(() => readFileSync(fileURLToPath(new URL(p, import.meta.url)))).not.toThrow();
   }
 });
-
-test("every page keeps the loading screen and the list of first-screen assets", () => {
-  // index.html has the loading screen; the build adds __BOOT_ASSETS__ before the pages are copied.
-  const withList = INDEX.replace('<script type="module"', '<script>window.__BOOT_ASSETS__=[]</script><script type="module"');
-  for (const [file, html] of openGraphPages(withList, CATALOG, BASE)) {
-    expect(html, file).toContain('id="boot-loader"');
-    expect(html, file).toContain("__BOOT_ASSETS__");
-  }
-});

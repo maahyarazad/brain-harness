@@ -1,4 +1,5 @@
-import { startLoader } from "../../boot/loader.js";
+// The loading screen's code lives in the server (server/public/boot/); it is tested here because this suite has jsdom.
+import { startLoader } from "../../../server/public/boot/loader.js";
 
 const okFetch = vi.fn(async () => ({
   ok: true,

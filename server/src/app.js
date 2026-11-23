@@ -4,10 +4,11 @@ import { config } from "./config.js";
 import healthRoutes from "./routes/health.js";
 import mcpRoutes from "./routes/mcp.js";
 import apiRoutes from "./routes/api.js";
+import siteRoutes from "./routes/site.js";
 import { toErrorEnvelope } from "./errors.js";
 
 /** Build the Fastify app without starting it (tests use app.inject()). */
-export function buildApp({ logger = true, corsOrigins = config.corsOrigins } = {}) {
+export function buildApp({ logger = true, corsOrigins = config.corsOrigins, webRoot = config.webRoot, publicDir = config.publicDir } = {}) {
   const app = Fastify({ logger });
 
   // Let the deployed playground call the API from another origin.
@@ -19,6 +20,7 @@ export function buildApp({ logger = true, corsOrigins = config.corsOrigins } = {
   app.register(healthRoutes);
   app.register(mcpRoutes);
   app.register(apiRoutes, { prefix: "/api" });
+  app.register(siteRoutes, { webRoot, publicDir }); // the website: client files, loading screen and pages
 
   // Every /api error leaves as { error: { code, message } }
   app.setErrorHandler((err, request, reply) => {
