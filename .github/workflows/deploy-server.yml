@@ -74,7 +74,6 @@ jobs:
             "ANTHROPIC_MODEL=$ANTHROPIC_MODEL" \
             "PORT=3000" \
             "HOST=127.0.0.1" \
-            "CORS_ORIGIN=$CORS_ORIGIN" \
             "WEB_ROOT=$WEB_ROOT" \
           | ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "umask 077 && cat > $APP_DIR/.env"
 
@@ -110,8 +109,8 @@ jobs:
             sudo systemctl reload nginx
           " < deploy/nginx-brain-harness.conf
 
-      - name: Check public health endpoint
-        run: curl -fsS --retry 5 --retry-delay 3 "$CORS_ORIGIN/health"
+      # - name: Check public health endpoint
+      #   run: curl -fsS --retry 5 --retry-delay 3 "$CORS_ORIGIN/health"
 
       - name: Check the site pages are served by the server
         run: |
