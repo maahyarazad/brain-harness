@@ -33,10 +33,14 @@ Declared by a visualization module as `sweep`. It is never stored; it tells the 
 | `sweep` | toggle | `false` | "Animated sweep". Added only to modules with a `SweepDeclaration`. |
 | `sweepSpeed` | range 0.1–4, step 0.1 | `1` | "Sweep speed". Visible only while `sweep` is on. |
 
+| `sweepOn_<key>` | toggle, hidden | `true` | One per `SweepTarget` (`sweepOn_view` for a zoom target). Whether the sweep moves that setting. Visible only as the tick box next to the setting (or the zoom button on the canvas). |
+
+The driver reads `sweepOn_*` from the configuration on every tick, so switching one needs no reset. A target switched back on gets its own phase shift (`offsets` in the driver state) so that it continues from its current value while the others carry on undisturbed.
+
 Because these are ordinary knob values:
 - **Share link**: the `v` diff includes them only when they differ from the defaults, so links stay short.
 - **Saved records and export files**: they appear in `config.values`.
-- **Old payloads**: they lack the keys, so `validateConfig` fills the defaults silently and the sweep is off (FR-016).
+- **Old payloads**: they lack the keys, so `validateConfig` fills the defaults silently: the sweep is off, and every target is on (FR-016).
 
 ## Generated preset
 

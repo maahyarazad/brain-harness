@@ -18,8 +18,9 @@ const LIGHT_VALUES = { dla: { particles: 1000 }, "collatz-coral": { count: 1000 
 function tunedValues(module, rng) {
   const values = { ...defaultsOf(module).values };
   // The studio's own sweep knobs are left at their defaults, so the random draws
-  // (and so the test's cost) stay the same as for the module's own knobs.
-  for (const k of module.knobs.filter((x) => !SWEEP_KNOBS.some((s) => s.key === x.key))) {
+  // (and so the test's cost) stay the same as for the module's own knobs. The hidden
+  // per-target "sweepOn_*" toggles are skipped for the same reason: they stay on.
+  for (const k of module.knobs.filter((x) => !x.hidden && !SWEEP_KNOBS.some((s) => s.key === x.key))) {
     if (k.type === "range") {
       const span = (k.max - k.min) * (k.live === false ? 0.15 : 0.5);
       values[k.key] = k.min + rng() * span;

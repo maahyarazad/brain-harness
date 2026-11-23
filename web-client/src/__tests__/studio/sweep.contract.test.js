@@ -1,7 +1,7 @@
 // Every visualization's "Animated sweep" (specs/004-studio-home-sweep/contracts/sweep.md).
 import { CATALOG } from "../../studio/catalog.js";
 import { applyPreset, defaultsOf, validateConfig, validateValue } from "../../studio/core/knobs.js";
-import { createSweepDriver, sweptKeys, SWEEP_PRESET_ID } from "../../studio/core/sweep.js";
+import { createSweepDriver, sweptKeys, sweepOnKey, SWEEP_PRESET_ID } from "../../studio/core/sweep.js";
 import { createModuleContext } from "../../studio/core/moduleContext.js";
 import { installCanvasStub } from "./canvasStub.js";
 import { makeCanvas } from "./harness.js";
@@ -102,6 +102,68 @@ describe.each(CATALOG.map((e) => [e.id, e]))("%s", (id, entry) => {
       }
     }
     expect(validateConfig(module, sweepConfig(module)).replaced).toEqual([]);
+  });
+
+  test("every target can be switched on and off (a hidden toggle knob per target)", () => {
+    if (!module.sweep) return;
+    const keys = module.knobs.map((k) => k.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    // The module's own knobs never use the shell's prefix.
+    const own = module.sweep.targets.map(sweepOnKey);
+    expect(keys.filter((k) => k.startsWith("sweepOn_")).sort()).toEqual([...own].sort());
+    for (const key of own) {
+      expect(module.knobs.find((k) => k.key === key)).toMatchObject({ type: "toggle", default: true, hidden: true });
+      expect(typeof module.knobs.find((k) => k.key === key).label).toBe("string");
+    }
+    expect(validateConfig(module, sweepConfig(module)).replaced).toEqual([]);
+    const off = Object.fromEntries(own.map((k) => [k, false]));
+    expect(validateConfig(module, { ...sweepConfig(module), values: { ...sweepConfig(module).values, ...off } }).replaced).toEqual([]);
+  });
+
+  /** A driver on a bare config (no instance), with every apply recorded. */
+  function bareDriver(values) {
+    const base = sweepConfig(module);
+    let cfg = { ...base, values: { ...base.values, ...values } };
+    const calls = [];
+    let time = 0;
+    const driver = createSweepDriver({
+      module,
+      getConfig: () => cfg,
+      isDone: () => true,
+      now: () => time,
+      apply: (vals, keys, viewPatch) => {
+        calls.push(keys);
+        cfg = { ...cfg, values: { ...cfg.values, ...vals }, view: viewPatch ? { ...cfg.view, ...viewPatch } : cfg.view };
+      },
+    });
+    const run = (ticks, ms) => {
+      for (let i = 0; i < ticks; i++) {
+        time += ms;
+        driver.tick();
+      }
+    };
+    return { calls, run };
+  }
+  const tickMs = (m) => (m.sweep.kind === "run" ? 2000 : 50);
+
+  test("with every target switched off, the sweep applies nothing", () => {
+    if (!module.sweep) return;
+    const off = Object.fromEntries(module.sweep.targets.map((t) => [sweepOnKey(t), false]));
+    const d = bareDriver(off);
+    d.run(50, tickMs(module));
+    expect(d.calls).toEqual([]);
+  });
+
+  test("with only the first target on, only that target changes", () => {
+    if (!module.sweep) return;
+    const [first, ...rest] = module.sweep.targets;
+    const off = Object.fromEntries(rest.map((t) => [sweepOnKey(t), false]));
+    const d = bareDriver(off);
+    // Long enough to go through a whole cycle, so even a short list of steps changes.
+    d.run(module.sweep.kind === "run" ? 50 : Math.ceil(module.sweep.periodMs / 50) + 20, tickMs(module));
+    expect(d.calls.length).toBeGreaterThan(0);
+    const only = first.view ? "view" : first.key;
+    for (const keys of d.calls) expect(keys).toEqual([only]);
   });
 
   test("sweeping runs, changes only swept settings, and writes valid values", async () => {

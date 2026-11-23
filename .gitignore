@@ -14,3 +14,5 @@ Thumbs.db
 .idea/
 julia-20261111-164309.mp4
 mandelbrot-20261112-094654.mp4
+# web-client/build/ holds the Vite plugins (openGraph.js, bootAssets.js), not build output
+!web-client/build/

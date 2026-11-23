@@ -108,6 +108,9 @@ sweep: {
 - If a redraw can take longer than a frame, implement `isBusy()`: the sweep waits until it
   returns false, so each step is finished before the next.
 
+Users can switch each declared target in or out of the sweep with a tick box next to the setting
+(or a button on the canvas for the zoom), so there is nothing extra to declare for that.
+
 `sweep.contract.test.js` checks every declaration and that a sweep step never shows a blank or
 half-drawn picture. See [`contracts/sweep.md`](../specs/004-studio-home-sweep/contracts/sweep.md).
 

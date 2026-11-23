@@ -473,3 +473,227 @@ Done outside the task list, at the user's request:
 - **Pictures moved:** from `/studio/thumbs/` to `/thumbs/`. A `dist/studio/` folder made nginx's `$uri/` rule answer `/studio` with a 301 to `/studio/`, which then gave a 403 because that folder had no `index.html`.
 - **Checked with nginx 1.27 in Docker:** with the new rule, `/studio/julia` returns 200 with the Julia preview. With the old rule, every page returns 200 with the site preview.
 
+
+---
+
+## Phase 9: User Story 5 - Choose which settings the sweep moves (Priority: P2)
+
+**Goal**: While "Animated sweep" is on, every setting the sweep moves shows a checkbox. Unticking it takes that setting out of the sweep: it keeps its current value, becomes an ordinary setting the user can edit, and the other swept settings keep moving. Ticking it again puts it back in the sweep, continuing from its current value. This also covers the zoom of a zoom sweep (Mandelbrot, Julia).
+
+**Independent Test**: Open `/studio/collatz-coral` and click "Animated sweep". "Even-step angle (°)" and "Odd-step angle (°)" are each marked "⟳ sweeping" with a checkbox ticked. Untick "Odd-step angle (°)": it stops moving, its slider can be dragged and keeps the value, "Even-step angle (°)" keeps moving. Tick it again: it moves again from where it is. Untick both: nothing moves and a hint says "Tick at least one setting to sweep." Reload from a share link, a saved copy or an export file: the choices are the same.
+
+**How the choice is stored** (decided here, so every task agrees):
+- For every sweep target, `withSweep()` adds one **hidden toggle knob** named `sweepOn_<target key>` (for a zoom target `sweepOn_view`), default `true`, with `hidden: true` and `when: (v) => v.sweep`.
+- Being ordinary knob values, they travel through share links (only when `false`, so links stay short), saved records and export files with **no format change** (research R3). Payloads made before this story have no such keys, so every swept setting stays on (FR-016 still holds).
+- "Reset to defaults" and applying any preset put every setting back on, because both start from the knobs' defaults.
+- Only the settings a module already declares in `sweep.targets` can be chosen. Making any other setting sweepable (with a range of the user's choice) is out of scope.
+
+### Tests for User Story 5 (write first, see them fail)
+
+- [X] T046 [P] [US5] Update and extend `web-client/src/__tests__/studio/core/sweep.test.js`:
+  - **Existing expectations to change:** line 95 (`m.knobs.map(k => k.key)` becomes `["a", "sweep", "sweepSpeed", "sweepOn_a"]`) and line 125 (`SWEEP_KNOBS` still lists only `sweep` and `sweepSpeed`; the per-target knobs are not in it).
+  - **withSweep:** each target gets `{ key: "sweepOn_<key>", type: "toggle", default: true, hidden: true }`, placed after `sweepSpeed`, and a zoom target gets `sweepOn_view`. The input module is not mutated.
+  - **Helpers:** `isSweepKey` is true for `sweep`, `sweepSpeed` and any `sweepOn_*`, false otherwise. `activeSweptKeys(module, values)` lists the declared keys whose `sweepOn_*` value isn't `false` (and `view` for zoom), in declaration order; a missing value counts as on. `sweptKeys` is unchanged.
+  - **Driver:** with `sweepOn_b: false`, only `a` is written, and `b` is left untouched. With all off, `apply` is never called over 100 ticks. After the user switches `b` back on, `b` resumes from its current value with no jump (first written value within one tick's movement of the current one). `kind: "run"`: the step count and the "user moved it" check use only active targets.
+- [X] T047 [P] [US5] Extend `web-client/src/__tests__/studio/sweep.contract.test.js` and `web-client/src/__tests__/studio/modules.contract.test.js`. For every module with `sweep`:
+  - Every target has a `sweepOn_*` knob with `type: "toggle"`, `default: true` and `hidden: true`, and `validateConfig(module, sweepConfig(module)).replaced` is still `[]`.
+  - With every `sweepOn_*` set to `false`, 50 fake-time driver ticks never call `apply`.
+  - With only the first target on, every `changedKeys` is a subset of that target's key.
+  - No two knobs share a key, and none of the module's own knob keys starts with `sweepOn_`.
+- [X] T048 [P] [US5] Extend `web-client/src/__tests__/studio/sweep.ui.test.jsx` (the file's `openViz`, `frames` and `angle` helpers already exist). Use `collatz-coral` for the scenarios below, and `mandelbrot` for the zoom one:
+  - **Checkboxes appear:** after clicking "Animated sweep", `getByRole("checkbox", { name: "Sweep Even-step angle (°)" })` and `…"Sweep Odd-step angle (°)"` exist and are checked. "Numbers" has none. The checkboxes are absent while the sweep is off. The hidden `sweepOn_*` knobs add no extra rows to Settings.
+  - **Opt out:** unticking "Sweep Odd-step angle (°)" and then running 40 frames leaves that slider's value unchanged while "Even-step angle (°)" changes. The odd slider has no "sweeping" description any more, and can be changed by the user (`fireEvent.change`) and keeps the new value across further frames.
+  - **Opt back in:** re-ticking it makes it move again, starting within one step of its current value.
+  - **None selected:** with both unticked, no value changes over 40 frames, the hint "Tick at least one setting to sweep." is shown, and it disappears when one is ticked. The Pause/Play bar is still there.
+  - **Zoom (`mandelbrot`):** the canvas badge is a button named "Sweep zoom" with `aria-pressed="true"` (text "⟳ sweeping zoom"). Pressing it sets `aria-pressed="false"`, the text becomes "Sweep zoom", and the picture is no longer redrawn while the hint "Tick at least one setting to sweep." shows (Mandelbrot's zoom is its only swept setting).
+  - **Persistence:** a share link, a saved record and an export file made with `sweepOn_oddAngle: false` come back with it still `false`. A config with every setting on adds no `sweepOn_*` key to the share link's `v` diff. A payload without any `sweepOn_*` key opens with all settings on.
+  - **Reset:** "Reset to defaults" and applying the "Animated sweep" preset set every setting back on.
+- [X] T049 [P] [US5] In `web-client/src/__tests__/studio/savedReplay.test.js` (line 22) also skip hidden knobs when drawing random values (`!x.hidden`), so the randomized configurations keep every sweep selection at its default. Add a short comment saying why.
+
+### Implementation for User Story 5
+
+- [X] T050 [US5] In `web-client/src/studio/core/sweep.js`:
+  1. Export `SWEEP_ON_PREFIX = "sweepOn_"`, `sweepOnKey(target)` (`sweepOn_` plus `view` for a zoom target, else the target's `key`) and `isSweepKey(key)` (`sweep`, `sweepSpeed`, or starts with the prefix).
+  2. In `withSweep`, append one hidden toggle knob per target after `SWEEP_KNOBS`: `{ key: sweepOnKey(t), label: "Sweep …", type: "toggle", default: true, hidden: true, when: (v) => v.sweep }`.
+  3. Export `activeSweptKeys(module, values)`: `sweptKeys(module)` filtered to those whose `values[sweepOnKey]` isn't `false`.
+  4. In `createSweepDriver`, work from the **active** targets, read from `getConfig().values` every tick: `write` and the "user moved a swept setting" check skip inactive targets, `stepCount` uses active targets, `syncPhase()` defaults to the first active target, and `tick()` returns right after updating `lastTick` when there are none. `reset()` (called when the sweep itself is switched on) re-syncs the phase from the first active target's current value. Switching a *target* in or out needs no reset: the driver compares the active set on every tick and, for a target that has just come back on, gives it its own phase shift (an `offsets` map) so it continues from its current value while the others are undisturbed.
+  5. Keep `SWEEP_KNOBS`, `sweptKeys` and the rest of the exports as they are.
+- [X] T051 [US5] In `web-client/src/studio/components/KnobPanel.jsx`:
+  - Skip knobs with `hidden` when building groups.
+  - Add props `sweepable` (a `Set` of the keys the module's sweep can move, from `sweptKeys(module)`; empty when `values.sweep` is off) and `onToggleSweep(key, on)`. Keep `sweeping` (the keys moving right now, from `activeSweptKeys`).
+  - For a knob in `sweepable`, replace the current "⟳ sweeping" pill with `<label className="sweep-toggle"><input type="checkbox" aria-label="Sweep {knob.label}" checked={sweeping.has(key)} onChange=… /><span className="sweep-badge" id="sweep-badge-{key}">⟳ sweeping</span></label>`. When it is unticked, show the plain text "Sweep this setting" in a `sweep-badge sweep-badge-off` pill (no `aria-describedby` on the knob, no `.sweeping` wrapper, so it looks like an ordinary setting).
+  - When `sweepable.size > 0` and `sweeping.size === 0`, show `<p className="knob-help" role="status">Tick at least one setting to sweep.</p>` under the "Sweep speed" knob (or at the end of the panel if that knob is hidden).
+- [X] T052 [US5] In `web-client/src/studio/components/Viewer.jsx`:
+  1. Replace `SHELL_KEYS` (line 18) and its use in `onKnobChange` with `isSweepKey` from `core/sweep.js`, so no `sweepOn_*` change ever reaches the module's `update()`.
+  2. A `sweepOn_*` change needs no `reset()` (the driver notices it on its next tick), so it just returns early like `sweepSpeed` does.
+  3. Pass `KnobPanel` `sweeping={activeSweptKeys(module, config.values)}` (as a `Set`, empty while the sweep is off), `sweepable={new Set(sweptKeys(module))}` while `config.values.sweep`, and `onToggleSweep={(key, on) => onKnobChange(sweepOnKey({ key }), on)}` (the zoom target's key is `view`).
+  4. Turn the canvas badge (lines 499–503) into a `<button type="button" className="sweep-badge sweep-badge-zoom" aria-pressed={zoomOn}>` that calls `onKnobChange("sweepOn_view", !zoomOn)`. Text: "⟳ sweeping zoom" when on, "Sweep zoom" when off. Keep `id="sweep-badge-view"`. Show it whenever the sweep is on and the module sweeps its zoom.
+- [X] T053 [P] [US5] In `web-client/src/studio/studio.css`, next to the sweep rules (around line 717):
+  - `.sweep-toggle` (inline-flex, gap 6px, cursor pointer, checkbox at least 16px, and 44px tall tap area under `@media (pointer: coarse)`).
+  - `.sweep-badge-off`: no animation, muted colours (`var(--muted)` on `var(--surface)` with a border), still at least 4.5:1 contrast.
+  - Make `.sweep-badge-zoom` work as a button: `font: inherit`, `cursor: pointer`, a visible `:focus-visible` ring like `.zoom-controls button`, and a "off" look when `aria-pressed="false"`.
+  - Check light and dark themes and a 360 px wide viewport.
+- [X] T054 [P] [US5] Update the docs (no code):
+  - `specs/004-studio-home-sweep/spec.md`: add User Story 5 (the goal and independent test above) and requirements **FR-028** (each setting a sweep moves can be switched out of the sweep and back, including the zoom), **FR-029** (a switched-out setting keeps its value and can be edited freely), **FR-030** (the choice persists through share link, save and export with no format change, and old payloads sweep everything), **FR-031** (with nothing selected the sweep does nothing and says so).
+  - `specs/004-studio-home-sweep/contracts/sweep.md`: in "Shell responsibilities" and "Persistence", describe the `sweepOn_<key>` knobs and that the driver ignores switched-off targets.
+  - `specs/004-studio-home-sweep/data-model.md`: add the `sweepOn_<key>` rows to "Shell-added knobs".
+  - `docs/adding-a-visualization.md` ("Animated sweep", line 81): one sentence that users can switch each declared target on or off, so module authors need to do nothing.
+
+### Checks for User Story 5
+
+- [ ] T055 [US5] Run `npx vitest run` in `web-client/` (T046–T049 now pass; the Mandelbrot, Julia and Times-table sweep tests and the replay test still pass) and `npm run build`. Then in a browser at `/studio/collatz-coral` and `/studio/mandelbrot`, follow the Independent Test above, and confirm that dragging an unticked setting while the sweep runs never makes the picture jump or blank (FR-012). **Status:** the automated part is done (`npx vitest run`: 48 files, 662 tests pass; `npm run build` succeeds). The manual browser check is still to do: the Chrome extension was not connected, so it was not run.
+
+### Dependencies for User Story 5
+
+- T046–T049 (tests, in parallel) → T050 → T051 and T052 (T052 needs T050 and T051's props; do T051 first) → T053 (independent of the code, can run with T051/T052) and T054 (docs, any time after T050).
+- T052 edits `Viewer.jsx`, which User Story 6 (T059) also edits. Finish T052 before starting T059.
+
+### Parallel example (User Story 5)
+
+```text
+Tests: T046 (core/sweep.test.js) ‖ T047 (sweep.contract + modules.contract) ‖ T048 (sweep.ui.test.jsx) ‖ T049 (savedReplay.test.js)
+After T050: T051 (KnobPanel.jsx) ‖ T053 (studio.css) ‖ T054 (docs); then T052 (Viewer.jsx)
+```
+
+---
+
+## Phase 10: User Story 6 - View the canvas in full screen (Priority: P3)
+
+**Goal**: Every visualization's canvas has a "Full screen" button. It fills the whole screen with the picture, redrawn at the new size, with the zoom buttons and the sweep badge still on it. Esc, or the button (now "Exit full screen"), returns to the normal page. Browsers that cannot do this don't show the button.
+
+**Independent Test**: Open `/studio/mandelbrot` in desktop Chrome and press "Full screen". The canvas fills the screen and is redrawn sharply. Pan and zoom still land where the pointer is. Press Esc: the page is back as it was, with the same settings. Repeat on `/studio/boids` (animated): the animation keeps running, and Space pauses it.
+
+**Decisions made here**:
+- **What goes full screen:** the `.canvas-wrap` element (the canvas plus its zoom buttons and sweep badge), not the whole page. The side panel and playback bar are hidden while in full screen. Space (play/pause) and the module's own keys keep working because the canvas has focus.
+- **Size:** in full screen the canvas fills the whole screen (no 4:3 limit). To keep heavy visualizations responsive, the canvas's drawing area is capped at 4 million pixels (the device pixel ratio is lowered to fit); the browser scales it up to the screen.
+- **Where there's no support** (for example iPhone Safari, which only allows full screen for video), the button is not shown. The prefixed WebKit API is used where it exists.
+- **No keyboard shortcut** is added for entering full screen, because some interactive visualizations use letter keys. Esc leaves it, as in every browser.
+
+### Tests for User Story 6 (write first, see them fail)
+
+- [X] T056 [P] [US6] Create `web-client/src/__tests__/studio/core/fullscreen.test.js` for the new `web-client/src/studio/core/fullscreen.js`. Stub the API on `Element.prototype` and `document` (jsdom has none), restoring it after each test:
+  - `fullscreenSupported(el)`: true when `document.fullscreenEnabled` is true and `el.requestFullscreen` exists; true through the `webkit` names when only those exist; false otherwise, and false when `fullscreenEnabled` is false.
+  - `enterFullscreen(el)` resolves `{ ok: true }` and calls `requestFullscreen` (or `webkitRequestFullscreen`); it resolves `{ ok: false }` when that rejects or throws, and never rejects itself.
+  - `exitFullscreen()` calls `document.exitFullscreen` (or the webkit one), does nothing when nothing is full screen, and never rejects.
+  - `isFullscreen(el)` compares `document.fullscreenElement` (or `webkitFullscreenElement`) with `el`.
+- [X] T057 [P] [US6] Create `web-client/src/__tests__/studio/fullscreen.test.jsx`, rendering `Root` at `/studio/phyllotaxis` as `studio.test.jsx` does (`installCanvasStub`, `stubReducedMotion`). Stub the Fullscreen API (`document.fullscreenEnabled = true`, `Element.prototype.requestFullscreen` as a mock that sets `document.fullscreenElement` and dispatches `fullscreenchange`, `document.exitFullscreen` likewise) and a global `ResizeObserver` that keeps its callback so the test can fire it:
+  - **Button:** a button "Full screen" is shown. Clicking calls `requestFullscreen` once, on the element that contains the canvas (`canvas.closest(".canvas-wrap")`).
+  - **State:** after `fullscreenchange` the button is named "Exit full screen" and has `aria-pressed="true"`. Clicking it calls `exitFullscreen`. A `fullscreenchange` with no full-screen element (the user pressed Esc) sets it back to "Full screen".
+  - **Inside the full-screen element:** the zoom buttons (use `/studio/mandelbrot`) and the "Sweep zoom" badge (`/studio/mandelbrot` with the sweep on) are descendants of the element passed to `requestFullscreen`.
+  - **Resize:** with the container reported as 1920×1080 CSS px and `devicePixelRatio = 2`, firing the observer callback leaves the canvas's drawing area at most 4,000,000 pixels and in the 16:9 ratio, with its CSS size 1920×1080. After leaving full screen, the size returns to the normal 4:3 layout.
+  - **Unsupported:** with `document.fullscreenEnabled = false` (and no webkit API) no "Full screen" button is shown.
+  - **Failure:** when `requestFullscreen` rejects, the notice "Full screen isn't available here, or the browser blocked it." appears and the button stays "Full screen".
+  - **Cleanup:** unmounting the viewer (go back to the catalog) while in full screen calls `exitFullscreen`.
+  - **Keys:** with an animated module (`/studio/boids`) in full screen and the canvas focused, pressing Space toggles Play/Pause as it does in the normal page.
+
+### Implementation for User Story 6
+
+- [X] T058 [US6] Create `web-client/src/studio/core/fullscreen.js` exporting `fullscreenSupported(el)`, `enterFullscreen(el)`, `exitFullscreen()` and `isFullscreen(el)` as specified in T056, using the standard API first and the `webkit`-prefixed one as a fallback. No React and no module-level side effects. Also export `FULLSCREEN_EVENTS = ["fullscreenchange", "webkitfullscreenchange"]`.
+- [X] T059 [US6] In `web-client/src/studio/components/Viewer.jsx` (after T052):
+  1. Add `const [fullscreen, setFullscreen] = useState(false)` and an effect that listens to `FULLSCREEN_EVENTS` on `document` and sets it to `isFullscreen(containerRef.current)`. On unmount, if still full screen, call `exitFullscreen()`.
+  2. Change `canvasSize(container)` (line 24) so that, when `isFullscreen(container)`, `cssW`/`cssH` are the container's `clientWidth`/`clientHeight` (keep the 240 px minimum, but drop the 4:3 and 72%-of-window limits), and `dpr = min(devicePixelRatio, 2, sqrt(4_000_000 / (cssW × cssH)))` (never above the normal dpr), with `w`/`h` rounded from it. Normal sizing is unchanged. The resize effect (step 3) already reacts to the container's size, so nothing else changes there; make sure its "first observation" skip and `last` key don't suppress the change when full screen starts.
+  3. Add the button inside `.canvas-wrap`, only when `ready && fullscreenSupported(containerRef.current)`: `<button type="button" className="fullscreen-btn" aria-pressed={fullscreen} aria-label={fullscreen ? "Exit full screen" : "Full screen"} title=…>` with an inline SVG icon (expand / collapse arrows, `aria-hidden`). On click: if in full screen call `exitFullscreen()`; otherwise `enterFullscreen(containerRef.current)`, and on `{ ok: false }` set the notice "Full screen isn't available here, or the browser blocked it.". After entering, call `canvasRef.current?.focus({ preventScroll: true })`.
+  4. Leave pointer, wheel and key handling as they are. They already use the canvas's own bounding box, so pan and zoom keep mapping correctly at the new size.
+- [X] T060 [P] [US6] In `web-client/src/studio/studio.css`, next to `.zoom-controls` (line 402):
+  - `.fullscreen-btn`: bottom-right of `.canvas-wrap` (`position: absolute; right: 8px; bottom: 8px`), the same dark glass look, 36 px square (44 px under `@media (pointer: coarse)`), visible `:focus-visible` ring.
+  - `.canvas-wrap:fullscreen, .canvas-wrap:-webkit-full-screen`: `width: 100%; height: 100%; border-radius: 0; display: grid; place-items: center; background: #0f0f12;`, and for the canvas inside `max-width: 100%; max-height: 100%`.
+  - Check the progress bar and the sweep badge still sit correctly in full screen, in light and dark themes.
+- [X] T061 [P] [US6] Update the docs (no code):
+  - `specs/004-studio-home-sweep/spec.md`: add User Story 6 (the goal and independent test above) and requirements **FR-032** (every visualization's canvas has a full-screen control, hidden where the browser can't do it), **FR-033** (full screen fills the screen, redraws at the new size within the 4-million-pixel cap, and keeps the zoom controls, sweep badge and keyboard controls working), **FR-034** (Esc or the control leaves it and restores the page and every setting).
+  - `README.md`: add "full screen" to the studio paragraph's list of features.
+
+### Checks for User Story 6
+
+- [ ] T062 [US6] Run `npx vitest run` in `web-client/` (T056–T057 now pass, nothing else regresses) and `npm run build`. Then follow the Independent Test above in desktop Chrome (and Firefox if available), and also check: (a) entering and leaving full screen with an Animated sweep running keeps sweeping and doesn't change any setting, (b) Mandelbrot in full screen on a 4K or retina display finishes its redraw in a reasonable time, (c) on iPhone Safari (or by removing the API in DevTools) no button is shown and nothing breaks. **Status:** the automated part is done (`npx vitest run`: 48 files, 662 tests pass; `npm run build` succeeds). The manual browser check is still to do: the Chrome extension was not connected, so it was not run.
+
+### Dependencies for User Story 6
+
+- T056, T057 (tests, in parallel) → T058 → T059 (needs T058, and T052 from US5 because both edit `Viewer.jsx`) → T060 and T061 (any time after T058; T060 needs the class names from T059) → T062.
+- US6 has no other dependency on US5: the full-screen button works with or without the sweep.
+
+### Parallel example (User Story 6)
+
+```text
+Tests: T056 (core/fullscreen.test.js) ‖ T057 (fullscreen.test.jsx)
+After T059: T060 (studio.css) ‖ T061 (docs)
+```
+
+---
+
+## Strategy for User Stories 5 and 6
+
+1. Do US5 first (T046–T055). It's the fix for the settings panel, and US6 needs its `Viewer.jsx` changes finished.
+2. Then US6 (T056–T062). The two stories can ship in separate commits or pull requests; nothing in US6 needs US5's behaviour.
+3. Only the manual checks (T055, T062) need a real browser. Everything else runs under `npx vitest run`.
+
+---
+
+## Phase 11: User Story 7 - A Tetris loading screen with progress while the site loads (Priority: P2)
+
+**Goal**: When someone opens the site, the page the web server sends shows a centered Tetris animation (never larger than 100 × 100 px) with a percentage under it, until the app's first screen assets have loaded and the app is on screen. Then it fades away.
+
+**Independent Test**: Build (`npm run build`) and serve `web-client/dist/` (`npx vite preview`), open `/studio` with DevTools → Network throttled to "Slow 4G" and the cache disabled. The Tetris animation shows in the middle of the window at 100 px or less, with a percentage that climbs from 0 % to 100 %, then it disappears and the catalog is there. Repeat on `/studio/julia` and `/playground`. With JavaScript's animation unavailable (block `*.lottie`), the percentage still shows.
+
+**Decisions made here** (the request left them open):
+- **"Server side"** means *in the HTML the server sends*, not React: the loader lives in `web-client/index.html`, so it shows before any app code has run. Nothing changes in `server/` (the Node API) or in nginx.
+- **Library:** the user's snippet offers a CDN script (`@latest`, unpinned, and a third-party request on every visit) or npm. Use npm, pinned: `@lottiefiles/dotlottie-wc` (the `<dotlottie-wc>` web component, which works without React), not `@lottiefiles/dotlottie-react`.
+- **The animation file:** move `Tetris Loop.lottie` from the repository root to `web-client/public/tetris-loop.lottie` (no spaces in the URL). It is 1.4 KB.
+- **What "all assets" means:** what the first screen needs, listed at build time: the entry script and its imports, the `StudioPage` chunk, the CSS, `logo.png` and the 23 catalog pictures in `public/thumbs/`. It does not include the 23 visualization chunks, which load when one is opened, nor the Playground chunk.
+- **Percentage:** bytes received ÷ total bytes of that list (sizes are written into the page at build time), then 100 % is shown once the app has put its first screen in `#root`. The loader fetches the files itself with `fetch` and reads the stream, so they are in the browser cache when the app asks for them.
+- **When it goes away:** all listed assets are loaded **and** `#root` contains something other than the Suspense fallback (`.studio-loading`). Watched with a `MutationObserver`, so no app code changes. A 15-second safety limit removes it anyway.
+- **In `npm run dev`** there is no list, so the percentage follows the entry script only and the loader goes when the app mounts.
+- **Size and place:** the animation box is exactly 100 × 100 px at most (`width: 100px; height: 100px; max-width: 100px; max-height: 100px`), centered both ways with the percentage under it, over a full-window background that follows the light/dark theme.
+- **Reduced motion:** with `prefers-reduced-motion: reduce` the animation does not autoplay (it shows its first frame); the percentage still updates.
+
+### Tests for User Story 7 (write first, see them fail)
+
+- [X] T063 [P] [US7] Create `web-client/src/__tests__/boot/progress.test.js` for the new `web-client/src/boot/progress.js`:
+  - `createProgress(assets, { fetchFn, onProgress })` with fake `fetch` responses (streams of known chunk sizes) reports a non-decreasing percentage from 0 to 100, based on bytes received ÷ the total of the `size` fields, never above 100, and ends with `{ done: true }` once every asset has finished.
+  - A failed asset (rejected fetch or a non-OK status) counts as finished with its full size, so one missing file never leaves the loader stuck below 100 %.
+  - An empty or missing list gives `{ percent: 0, done: true }`; a response without a readable body counts as loaded when its promise resolves.
+  - `formatPercent(0.4)`-style helper: `formatPercent(p)` returns an integer string from `"0"` to `"100"`.
+- [X] T064 [P] [US7] Create `web-client/src/__tests__/boot/loader.test.js` (jsdom) for the new `web-client/src/boot/loader.js`. Put `<div id="boot-loader" role="status" aria-live="polite"><span id="boot-percent"></span></div>` and `<div id="root"></div>` in `document.body`, and stub `fetch`:
+  - `startLoader({ assets })` writes the percentage into `#boot-percent` as it grows (for example `"37%"`).
+  - It stays visible while `#root` is empty or holds only `<p class="studio-loading">`, even when every asset has loaded; once `#root` holds another element **and** progress is 100 it adds the class `boot-loader--done`, and removes the element after the `transitionend` event (or after 400 ms when the event never comes).
+  - After the 15 s limit (fake timers) it is removed even if assets are still loading.
+  - With no `#boot-loader` in the page it does nothing and does not throw.
+- [X] T065 [P] [US7] Create `web-client/src/__tests__/bootManifest.test.js` (`// @vitest-environment node`, like `openGraph.test.js`) for the new `web-client/build/bootAssets.js`:
+  - `collectBootAssets(bundle, { publicFiles })` returns `[{ url, size }]` containing the entry chunk and its static imports, the chunk whose `facadeModuleId` ends in `StudioPage.jsx`, its and the entry's CSS, and the public files given (`/logo.png`, `/thumbs/*.webp`), each URL starting with `/`, sizes in bytes, no duplicates, and no visualization chunk (for example none whose name starts with `mandelbrot`) and no `App` (Playground) chunk.
+  - `injectBootAssets(html, assets)` puts `<script>window.__BOOT_ASSETS__=[…]</script>` before the first module script, escaping `<` as `<`, and is a no-op when the list is empty.
+
+### Implementation for User Story 7
+
+- [X] T066 [US7] In `web-client/`: run `npm install --save-exact @lottiefiles/dotlottie-wc` (pinned; commit the `package.json` and `package-lock.json` change). Then check where the player fetches its WebAssembly renderer from at run time: by default it loads from a CDN. Download that `.wasm` file into `web-client/public/dotlottie-player.wasm`, and call the package's `setWasmUrl("/dotlottie-player.wasm")` (see its README) from `web-client/src/boot/loader.js` before the animation starts, so the site loads nothing from a third party. Note the wasm file's size in `research.md` (R12).
+- [X] T067 [US7] Move the animation: `mv "Tetris Loop.lottie" web-client/public/tetris-loop.lottie` from the repository root (it is untracked, so no `git mv`).
+- [X] T068 [P] [US7] Create `web-client/src/boot/progress.js` as specified in T063: `createProgress`, `formatPercent`. Read each response with `response.body.getReader()` and add `value.length` to the received total as chunks arrive. No DOM access.
+- [X] T069 [P] [US7] Create `web-client/build/bootAssets.js` as specified in T065: `collectBootAssets(bundle, { publicFiles })`, `injectBootAssets(html, assets)`, and the Vite plugin `bootAssets()` that, in `transformIndexHtml` with `order: "post"` (so it runs before `build/openGraph.js` copies the page for `/studio` and each visualization), reads `ctx.bundle`, lists `public/logo.png` and `public/thumbs/*.webp` with `fs.statSync(...).size`, and injects the result. During `vite dev` (`ctx.bundle` is undefined) it injects nothing.
+- [X] T070 [US7] (Done as two files: `src/boot/loader.js` has `startLoader` with no side effects so it can be tested, and the entry `src/boot/index.js` starts it, sets the wasm URL and creates the `<dotlottie-wc>` element inside `#boot-anim` after that, because an element in the HTML would start loading before `setWasmUrl` runs; `index.html` loads `/src/boot/index.js`.) Create `web-client/src/boot/loader.js` as specified in T064: `startLoader({ assets = window.__BOOT_ASSETS__ ?? [] })`, which uses `createProgress`, updates `#boot-percent`, and removes `#boot-loader` as described. At module level, call `startLoader()` once the DOM is ready, and set up the animation: `import "@lottiefiles/dotlottie-wc"` and `setWasmUrl` (T066). Set `autoplay` unless `matchMedia("(prefers-reduced-motion: reduce)").matches`. If the import or the animation fails, leave the percentage showing and don't throw.
+- [X] T071 [US7] In `web-client/index.html`:
+  - Inside `<body>`, before `<div id="root">`, add `<div id="boot-loader" role="status" aria-live="polite"><dotlottie-wc src="/tetris-loop.lottie" loop></dotlottie-wc><span id="boot-percent">0%</span></div>` (the `<dotlottie-wc>` element has no `autoplay` attribute here: `loader.js` sets it, see T070).
+  - Add an inline `<style>` in `<head>` (so it applies before any CSS file arrives): `#boot-loader` is `position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; z-index: 1000; background: Canvas; color: CanvasText;` with `dotlottie-wc { width: 100px; height: 100px; max-width: 100px; max-height: 100px; }`, `#boot-percent { font: 14px system-ui, sans-serif; font-variant-numeric: tabular-nums; }`, `.boot-loader--done { opacity: 0; transition: opacity .3s; pointer-events: none; }` and a `@media (prefers-color-scheme: dark)` background that matches the studio's dark theme (read the colours from `web-client/src/studio/studio.css`).
+  - Add `<script type="module" src="/src/boot/loader.js"></script>` before the existing `main.jsx` script, so the loader starts first.
+- [X] T072 [US7] In `web-client/vite.config.js` add `bootAssets()` to `plugins` (line 64) after `react()` and before `openGraph()`. Check that `build/openGraph.js` keeps the loader markup and the manifest in every page it writes: `dist/index.html`, `dist/og/studio.html` and `dist/og/studio/<id>.html` must all contain `id="boot-loader"` and `__BOOT_ASSETS__`. Add a test for that to `web-client/src/__tests__/openGraph.test.js` (it already builds the pages from `index.html`).
+- [X] T073 [P] [US7] Check the nginx config needs no change: `deploy/nginx-brain-harness.conf` serves `/tetris-loop.lottie` and `/dotlottie-player.wasm` as static files. Confirm nginx answers `.wasm` with `application/wasm` (it does with the default `mime.types`; if the server's file is old, add `types { application/wasm wasm; }` to the site config) and document the result in `research.md` (R12). Update the "Check the pages are served" step in `.github/workflows/deploy-web-client.yml` to also `curl -fsS "$PUBLIC_URL/tetris-loop.lottie" -o /dev/null`.
+- [X] T074 [P] [US7] Update the docs (no code): `specs/004-studio-home-sweep/spec.md` (add User Story 7 and requirements **FR-035** the page the server sends shows a centered loading animation of at most 100 × 100 px with a percentage until the first screen's assets are loaded and the app is shown, **FR-036** the percentage never goes down, reaches 100 only when loading is finished, and a failed file cannot leave it stuck, **FR-037** nothing is requested from a third-party host, **FR-038** reduced motion stops the animation but not the percentage), `research.md` (R12: the choices above, the wasm file, the 15 s limit), and the `README.md` studio paragraph (one sentence).
+
+### Checks for User Story 7
+
+- [ ] T075 [US7] Run `npx vitest run` in `web-client/` (T063–T065 and the T072 test pass, nothing else regresses; the existing tests need no loader markup because they render `Root` directly) and `npm run build`. Open `dist/index.html` and confirm `__BOOT_ASSETS__` lists the entry chunk, the `StudioPage` chunk, the CSS, the logo and the 23 pictures, and that no `mandelbrot-*.js` is in it. Then do the Independent Test above in Chrome with throttling, and also check: (a) the animation is at most 100 × 100 px and centered at window sizes from 360 px wide to 4K, (b) the percentage never goes down and ends at 100, (c) the Network tab shows no request to `unpkg.com`, `jsdelivr.net` or any host other than your own, (d) blocking `tetris-loop.lottie` still shows the percentage and the app still loads. **Status:** the automated part is done (`npx vitest run`: 51 files, 677 tests pass; `npm run build` succeeds; `dist/index.html`, `dist/og/studio.html` and every `dist/og/studio/<id>.html` have the loader and the list, which holds the entry, `StudioPage`, CSS, logo and 23 pictures and no `mandelbrot-*.js`; `vite preview` serves the `.lottie` and the `.wasm` as `application/wasm`; the bundle's only CDN addresses are the player's unused defaults). The checks in a real browser, (a)–(d) and the throttled run, are still to do: no browser was connected.
+
+### Dependencies for User Story 7
+
+- T063–T065 (tests, in parallel) → T066 and T067 (setup, in parallel) → T068 and T069 (in parallel) → T070 (needs T066, T068) → T071 (needs T070 and T067) → T072 (needs T069, T071) → T073 and T074 (any time after T072) → T075.
+- US7 touches only `index.html`, `vite.config.js`, `build/` and the new `src/boot/`, so it is independent of US5 and US6.
+
+### Parallel example (User Story 7)
+
+```text
+Tests:  T063 (progress.test.js) ‖ T064 (loader.test.js) ‖ T065 (bootManifest.test.js)
+Setup:  T066 (npm install, wasm) ‖ T067 (move the .lottie file)
+Code:   T068 (progress.js) ‖ T069 (build/bootAssets.js)
+Last:   T073 (nginx/workflow check) ‖ T074 (docs)
+```
+
+### Strategy
+
+Ship in one change. If the wasm file turns out too large to be worth self-hosting (T066), the fallback is a CSS-only Tetris-coloured spinner with the same percentage; say so in `research.md` rather than loading from a CDN.

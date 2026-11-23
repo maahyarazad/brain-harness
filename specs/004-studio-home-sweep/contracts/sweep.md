@@ -52,9 +52,10 @@ User pan and zoom during a zoom sweep still go through `ctx.setView`; the driver
 
 | Responsibility | Where |
 |---|---|
-| Append `sweep` / `sweepSpeed` knobs and the "Animated sweep" preset | `core/sweep.js` → `withSweep(module)`, applied in the catalog loader (`catalog.js`) |
+| Append `sweep` / `sweepSpeed` knobs, one hidden `sweepOn_<key>` toggle per target, and the "Animated sweep" preset | `core/sweep.js` → `withSweep(module)`, applied in the catalog loader (`catalog.js`) |
 | Never call `step`/`render` per frame for still modules; their loop only drives the sweep | `Viewer.jsx` |
-| Mark the swept knobs ("⟳ sweeping", `aria-describedby`) and a zoom sweep (badge on the canvas) | `KnobPanel.jsx`, `Viewer.jsx` |
+| Mark the swept knobs (a tick box with "⟳ sweeping", `aria-describedby`) and a zoom sweep (a toggle button on the canvas); never write `sweep*` keys through to `update()` | `KnobPanel.jsx`, `Viewer.jsx` |
+| Skip targets whose `sweepOn_<key>` is `false`; do nothing when all are off | driver (`createSweepDriver`) |
 | Create the play loop for still modules that have `sweep` | `Viewer.jsx` |
 | Show the playback bar while `values.sweep` is on | `Viewer.jsx` |
 | Tick the driver once per frame while playing and `values.sweep` | `Viewer.jsx` + `createSweepDriver` |
@@ -64,12 +65,12 @@ User pan and zoom during a zoom sweep still go through `ctx.setView`; the driver
 
 ## Persistence
 
-No format changes. `sweep` and `sweepSpeed` are knob values, so they travel in:
+No format changes. `sweep`, `sweepSpeed` and the `sweepOn_<key>` choices are knob values, so they travel in:
 - share links (`v` diff, only when not default)
 - saved records
 - export files (`formatVersion` stays 1)
 
-Payloads made before this feature open with the sweep off.
+Payloads made before this feature open with the sweep off, and with every target on.
 
 ## Contract tests (`modules.contract.test.js` additions)
 
@@ -80,3 +81,4 @@ Payloads made before this feature open with the sweep off.
    - It never throws.
    - Every `update` call's `changedKeys` is a subset of the swept keys (or `["view"]`).
    - All written values pass `validateValue`.
+5. Every target has a hidden `sweepOn_<key>` toggle (default `true`); with all off the driver applies nothing, and with only the first on only that key changes.

@@ -97,6 +97,49 @@ Each card in the catalog shows a small sample picture of that visualization (the
 
 ---
 
+### User Story 5 - Choose which settings the sweep moves (Priority: P2)
+
+While "Animated sweep" is on, the user decides which of the swept settings it moves. Each swept setting has a tick box. Unticking one takes it out of the sweep: it keeps its current value and can be edited like any other setting, while the others keep moving. Ticking it again puts it back, continuing from its current value. A zoom sweep's zoom can be switched in and out the same way.
+
+**Why this priority**: today every swept setting is locked into the sweep with no way out, so a user who likes one setting's look cannot keep it fixed while watching another one change.
+
+**Independent Test**: Open Collatz coral and turn on "Animated sweep". Untick "Odd-step angle (°)": it stops moving and can be edited, while "Even-step angle (°)" keeps moving. Tick it again: it moves again from where it is. Untick both: nothing moves and a hint says to tick at least one.
+
+**Acceptance Scenarios**:
+
+1. **Given** a sweep is on, **When** the user looks at the settings it moves, **Then** each shows a tick box (ticked), and settings it does not move show none.
+2. **Given** a swept setting, **When** the user unticks it, **Then** its value stays, it can be edited and keeps the edit, and the other swept settings keep moving.
+3. **Given** an unticked setting, **When** the user ticks it, **Then** it moves again starting from its current value, with no jump.
+4. **Given** every swept setting is unticked, **When** the sweep runs, **Then** nothing changes and the panel says to tick at least one setting.
+5. **Given** a sweep with unticked settings, **When** the user shares, saves or exports it and reopens it, **Then** the same settings are ticked. A link made before this story sweeps every setting.
+
+---
+
+### User Story 6 - View the canvas in full screen (Priority: P3)
+
+Every visualization's canvas has a "Full screen" button. It fills the whole screen with the picture, redrawn at the new size, with the zoom buttons and the sweep control still on it. Esc, or the same button (now "Exit full screen"), goes back to the normal page with every setting unchanged. Browsers that cannot do this don't show the button.
+
+**Why this priority**: the canvas shares the page with the side panel, so the picture is smaller than it could be, for example when presenting or recording.
+
+**Independent Test**: Open Mandelbrot in desktop Chrome and press "Full screen". The canvas fills the screen and is redrawn sharply, and pan and zoom still land under the pointer. Press Esc: the page is back as it was. Repeat with an animated visualization: it keeps running, and Space pauses it.
+
+**Acceptance Scenarios**:
+
+1. **Given** a visualization is open, **When** the user presses "Full screen", **Then** the canvas fills the screen and is redrawn at that size.
+2. **Given** full screen, **When** the user presses Esc or "Exit full screen", **Then** the normal page returns with the same settings and view.
+3. **Given** full screen, **When** a sweep or animation is running, **Then** it keeps running, and the canvas's own keys (such as Space for play and pause) still work.
+4. **Given** a browser without a full-screen feature for page elements, **When** a visualization is open, **Then** no full-screen button is shown.
+
+---
+
+### User Story 7 - A Tetris loading screen with progress while the site loads (Priority: P2)
+
+When someone opens the site, the page the server sends shows a centered Tetris animation, at most 100 × 100 px, with a percentage under it, until the first screen's assets have loaded and the app is shown. Then it fades away.
+
+**Independent Test**: Serve the build, open `/studio` with the network throttled and the cache disabled. The animation and a rising percentage show in the middle of the window, then the catalog appears.
+
+---
+
 ### Edge Cases
 
 - **Old Playground bookmark**: the root address used to be the Playground, so an old bookmark to it now opens the studio catalog at /studio. No error page and no broken page are shown.
@@ -153,6 +196,26 @@ Each card in the catalog shows a small sample picture of that visualization (the
 - **FR-026**: Each picture MUST be small: at most 30 KB, and all 23 together at most 500 KB.
 - **FR-027**: The pictures MUST be regenerable from the visualizations with one documented developer step. A test MUST fail when a catalog entry has no picture. The generator MUST NOT be part of the site visitors get.
 
+**Choosing what a sweep moves**
+
+- **FR-028**: While a sweep is on, each setting it moves (including the zoom of a zoom sweep) MUST have a control to switch it out of the sweep and back in.
+- **FR-029**: A setting switched out of the sweep MUST keep its current value and be freely editable. When it is switched back in, it MUST continue from its current value without a jump, and the other swept settings MUST be unaffected.
+- **FR-030**: The choice MUST persist through share links, saved visualizations and export files with no format change. Payloads made before this feature MUST sweep every setting.
+- **FR-031**: With every swept setting switched out, the sweep MUST change nothing and the panel MUST say so.
+
+**Full screen**
+
+- **FR-032**: Every visualization's canvas MUST have a full-screen control, hidden where the browser cannot do it.
+- **FR-033**: In full screen the canvas MUST fill the screen and be redrawn at the new size (limited to 4 million pixels of drawing area), and the zoom controls, the sweep control and the keyboard controls MUST keep working.
+- **FR-034**: Esc or the control MUST leave full screen and restore the page and every setting.
+
+**Loading screen**
+
+- **FR-035**: The page the server sends MUST show a centered loading animation of at most 100 × 100 px with a percentage until the first screen's assets are loaded and the app is shown.
+- **FR-036**: The percentage MUST never go down, MUST reach 100 only when loading is finished, and a failed file MUST NOT leave it stuck.
+- **FR-037**: Nothing for the loading screen may be requested from a third-party host.
+- **FR-038**: With reduced motion the animation MUST NOT play, and the percentage MUST still update.
+
 ### Key Entities
 
 - **Sweep**: an animation of one or more settings of a visualization. Has the settings it moves, the range for each, a speed, and how it handles the end of the range (reverse, or wrap for circular settings). It is on or off, and is saved with the rest of the visualization's settings.
@@ -172,6 +235,8 @@ Each card in the catalog shows a small sample picture of that visualization (the
 - **SC-007**: The Playground's existing automated tests all still pass.
 - **SC-008**: All 23 catalog cards show their visualization's picture. The catalog transfers no more than 500 KB of pictures and starts no visualization.
 - **SC-009**: A developer can regenerate all 23 pictures in under 2 minutes.
+- **SC-010**: In a sweep with several settings, the user can stop any one of them and edit it, and the picture never jumps or blanks when they do.
+- **SC-011**: On a browser that supports it, a visualization can go to full screen and back with one action each, with no setting changed.
 
 ## Assumptions
 

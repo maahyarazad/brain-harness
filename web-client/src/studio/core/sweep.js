@@ -11,6 +11,15 @@ export const DEFAULT_HOLD_MS = 1500;
 const MAX_DT_MS = 100;
 const WRAPPED = Symbol("withSweep");
 
+/** Prefix of the hidden per-target on/off knobs (`sweepOn_<key>`, `sweepOn_view` for a zoom target). */
+export const SWEEP_ON_PREFIX = "sweepOn_";
+
+/** The knob that says whether a sweep target is switched on. */
+export const sweepOnKey = (target) => SWEEP_ON_PREFIX + (target.view ? "view" : target.key);
+
+/** True for the shell's own sweep settings, which never reach a module's update(). */
+export const isSweepKey = (key) => key === "sweep" || key === "sweepSpeed" || String(key).startsWith(SWEEP_ON_PREFIX);
+
 export const SWEEP_KNOBS = [
   { key: "sweep", label: "Animated sweep", type: "toggle", default: false },
   {
@@ -31,9 +40,15 @@ export function withSweep(module) {
     values: { ...presetValues, sweep: true },
     ...(presetView ? { view: { ...presetView } } : {}),
   };
+  // One hidden on/off setting per target: ordinary knob values, so the choice travels
+  // through share links, saves and exports like the sweep itself. Missing = on.
+  const targetKnobs = module.sweep.targets.map((t) => {
+    const label = t.view ? "Zoom" : module.knobs.find((k) => k.key === t.key)?.label ?? t.key;
+    return { key: sweepOnKey(t), label: `Sweep ${label}`, type: "toggle", default: true, hidden: true, when: (v) => v.sweep };
+  });
   return {
     ...module,
-    knobs: [...module.knobs, ...SWEEP_KNOBS],
+    knobs: [...module.knobs, ...SWEEP_KNOBS, ...targetKnobs],
     presets: hasPreset ? presets : [...presets, preset],
     [WRAPPED]: true,
   };
@@ -42,6 +57,11 @@ export function withSweep(module) {
 /** Knob keys a sweep moves; "view" for a zoom target. */
 export function sweptKeys(module) {
   return (module?.sweep?.targets ?? []).map((t) => (t.view ? "view" : t.key));
+}
+
+/** The keys the sweep is moving right now: the declared ones that are switched on. */
+export function activeSweptKeys(module, values = {}) {
+  return (module?.sweep?.targets ?? []).filter((t) => values[sweepOnKey(t)] !== false).map((t) => (t.view ? "view" : t.key));
 }
 
 const frac = (x) => x - Math.floor(x);
@@ -126,22 +146,47 @@ export function createSweepDriver({
   now = () => performance.now(),
 }) {
   const decl = module.sweep;
-  const targets = decl.targets;
+  const allTargets = decl.targets;
   const kind = decl.kind ?? "continuous";
   const knobs = Object.fromEntries(module.knobs.map((k) => [k.key, k]));
   const holdMs = decl.holdMs ?? DEFAULT_HOLD_MS;
-  const stepCount = Math.max(...targets.map((t) => (t.mode === "steps" ? t.list.length : 1)));
+  const isOn = (target) => getConfig().values[sweepOnKey(target)] !== false;
+  /** The targets switched on right now (the user can change this at any time). */
+  const activeTargets = () => allTargets.filter(isOn);
+  const stepCountOf = (targets) => Math.max(...targets.map((t) => (t.mode === "steps" ? t.list.length : 1)));
+
+  const keyOf = (target) => (isZoom(target) ? "view" : target.key);
 
   let t = 0;
   let lastTick = null;
   let lastApplyAt = -Infinity;
   let doneSince = null;
   let lastWritten = new Map();
+  // A target the user switches back on joins the sweep from its own current value. It
+  // gets its own shift from the shared phase, so the others carry on undisturbed.
+  let offsets = new Map();
+  let wasOn = new Set();
+
+  const phaseFor = (target) => frac(t + (offsets.get(keyOf(target)) ?? 0));
 
   /** Starts the phase from the first target's current value, so turning the sweep on doesn't jump. */
-  function syncPhase(target = targets[0], rising = true) {
+  function syncPhase(target = activeTargets()[0], rising = true) {
+    if (!target) return;
     const v = readTarget(getConfig(), target);
-    if (v !== undefined && v !== null) t = phaseOf(target, v, rising);
+    if (v !== undefined && v !== null) t = frac(phaseOf(target, v, rising) - (offsets.get(keyOf(target)) ?? 0));
+  }
+
+  /** Notices targets that were switched on or off since the last tick. */
+  function trackSwitches(targets) {
+    const cfg = getConfig();
+    for (const target of targets) {
+      const key = keyOf(target);
+      if (wasOn.has(key)) continue;
+      const v = readTarget(cfg, target);
+      if (v !== undefined && v !== null) offsets.set(key, frac(phaseOf(target, v, true) - t));
+      lastWritten.delete(key); // whatever it was set to meanwhile is not "the user moving it"
+    }
+    wasOn = new Set(targets.map(keyOf));
   }
 
   function reset() {
@@ -149,18 +194,20 @@ export function createSweepDriver({
     doneSince = null;
     lastApplyAt = -Infinity;
     lastWritten = new Map();
+    offsets = new Map();
     syncPhase();
+    wasOn = new Set(activeTargets().map(keyOf));
   }
   reset();
 
-  function write(at) {
+  function write(at, targets) {
     const cfg = getConfig();
     const values = {};
     const keys = [];
     let viewPatch = null;
     for (const target of targets) {
-      const v = valueAt(target, t, knobs[target.key]);
-      const key = isZoom(target) ? "view" : target.key;
+      const v = valueAt(target, phaseFor(target), knobs[target.key]);
+      const key = keyOf(target);
       lastWritten.set(key, v);
       if (readTarget(cfg, target) === v) continue;
       if (isZoom(target)) viewPatch = { zoom: v };
@@ -177,14 +224,17 @@ export function createSweepDriver({
     const dt = lastTick === null ? 0 : Math.min(MAX_DT_MS, Math.max(0, at - lastTick));
     lastTick = at;
     const cfg = getConfig();
+    const targets = activeTargets();
+    trackSwitches(targets);
+    if (!targets.length) return; // the user switched every setting out of the sweep
 
     // The user moved a swept setting (or zoomed): carry on from their value.
     for (const target of targets) {
-      const key = isZoom(target) ? "view" : target.key;
+      const key = keyOf(target);
       if (!lastWritten.has(key)) continue;
       const current = readTarget(cfg, target);
       if (current !== lastWritten.get(key)) {
-        syncPhase(target, isRising(target, t));
+        syncPhase(target, isRising(target, phaseFor(target)));
         lastWritten = new Map();
         doneSince = null;
         break;
@@ -205,14 +255,14 @@ export function createSweepDriver({
       }
       if (at - doneSince < holdMs) return;
       doneSince = null;
-      t = frac(t + 1 / stepCount);
-      write(at);
+      t = frac(t + 1 / stepCountOf(targets));
+      write(at, targets);
       return;
     }
 
     t = frac(t + (dt * speed) / decl.periodMs);
     if (at - lastApplyAt < (decl.minIntervalMs ?? 0)) return;
-    write(at);
+    write(at, targets);
   }
 
   return { tick, reset };

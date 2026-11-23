@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { openGraph } from "./build/openGraph.js";
+import { bootAssets } from "./build/bootAssets.js";
 import { readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -61,7 +62,7 @@ function thumbnailWriter() {
 }
 
 export default defineConfig({
-  plugins: [react(), thumbnailWriter(), openGraph()],
+  plugins: [react(), thumbnailWriter(), bootAssets(), openGraph()],
   server: {
     proxy: {
       "/api": SERVER,

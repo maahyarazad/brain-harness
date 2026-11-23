@@ -1,5 +1,5 @@
 // The "Animated sweep" preset in the viewer (US3).
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi, beforeEach, afterEach } from "vitest";
 import Root from "../../Root.jsx";
@@ -7,7 +7,7 @@ import { findEntry } from "../../studio/catalog.js";
 import { encodeConfig, decodeConfig } from "../../studio/core/shareLink.js";
 import { buildExport, parseImport } from "../../studio/core/exportFile.js";
 import { applyPreset, defaultsOf } from "../../studio/core/knobs.js";
-import { installCanvasStub } from "./canvasStub.js";
+import { installCanvasStub, calls, resetCanvasCalls } from "./canvasStub.js";
 import { createFrameDriver, stubReducedMotion, installMediaRecorder, removeMediaRecorder } from "./browserStubs.js";
 
 installCanvasStub();
@@ -162,4 +162,167 @@ test("links made before sweeps existed open with the sweep off and no notice", a
   expect(dec.replaced).toEqual([]);
   expect(dec.error).toBeUndefined();
   expect(dec.config.values.sweep).toBe(false);
+});
+
+
+// ---- Choosing which settings are swept (US5) ----
+
+/** Like frames(), but lets the picture finish drawing between frames (Collatz redraws asynchronously). */
+async function settledFrames(n) {
+  for (let i = 0; i < n; i++) {
+    frames(1);
+    await act(async () => new Promise((r) => setTimeout(r, 4)));
+  }
+}
+
+const even = () => screen.getByLabelText("Even-step angle (°) value");
+const odd = () => screen.getByLabelText("Odd-step angle (°) value");
+const sweepBox = (label) => screen.getByRole("checkbox", { name: `Sweep ${label}` });
+
+function type(input, text) {
+  fireEvent.change(input, { target: { value: text } });
+  fireEvent.blur(input);
+}
+
+/**
+ * Collatz with a light picture (20 numbers) and the sweep on. The sweep is switched on with its
+ * tick box, not the "Animated sweep" preset, because the preset would put Numbers back to 5000.
+ */
+async function openCollatzSweeping() {
+  const user = await openViz("collatz-coral", "Collatz coral");
+  type(screen.getByLabelText("Numbers value"), "20");
+  await settledFrames(3); // the knob change is applied on an animation frame
+  await user.click(screen.getByRole("checkbox", { name: "Animated sweep" }));
+  return user;
+}
+
+test("each swept setting gets a tick box, and nothing else does", async () => {
+  const user = await openViz("collatz-coral", "Collatz coral");
+  expect(screen.queryByRole("checkbox", { name: /^Sweep / })).toBeNull(); // sweep off: no boxes
+  type(screen.getByLabelText("Numbers value"), "20"); // few numbers keep the redraws cheap
+  await settledFrames(3);
+  await user.click(screen.getByRole("checkbox", { name: "Animated sweep" }));
+  expect(sweepBox("Even-step angle (°)")).toBeChecked();
+  expect(sweepBox("Odd-step angle (°)")).toBeChecked();
+  expect(screen.getAllByRole("checkbox", { name: /^Sweep / })).toHaveLength(2); // not "Numbers", and no hidden knob rows
+  expect(screen.getAllByText("⟳ sweeping")).toHaveLength(2);
+  expect(screen.getByRole("slider", { name: "Even-step angle (°)" })).toHaveAccessibleDescription(/sweeping/);
+});
+
+test("unticking a setting takes it out of the sweep and lets the user edit it", async () => {
+  const user = await openCollatzSweeping();
+  await user.click(sweepBox("Odd-step angle (°)"));
+  expect(sweepBox("Odd-step angle (°)")).not.toBeChecked();
+  expect(screen.getByRole("slider", { name: "Odd-step angle (°)" })).not.toHaveAccessibleDescription(/sweeping/);
+  expect(screen.getByRole("slider", { name: "Even-step angle (°)" })).toHaveAccessibleDescription(/sweeping/);
+
+  const oddStart = odd().value;
+  const evenStart = even().value;
+  await settledFrames(40);
+  expect(odd().value).toBe(oddStart);
+  expect(even().value).not.toBe(evenStart);
+
+  type(odd(), "-12"); // inside the sweep's range for this setting (-20 to -8)
+  await settledFrames(40);
+  expect(odd().value).toBe("-12");
+});
+
+test("ticking it again puts it back, continuing from where it is", async () => {
+  const user = await openCollatzSweeping();
+  await user.click(sweepBox("Odd-step angle (°)"));
+  type(odd(), "-12"); // inside the sweep's range for this setting (-20 to -8)
+  await settledFrames(10);
+  await user.click(sweepBox("Odd-step angle (°)"));
+  expect(sweepBox("Odd-step angle (°)")).toBeChecked();
+  await settledFrames(1);
+  expect(Math.abs(Number(odd().value) + 12)).toBeLessThan(1.5); // no jump
+  await settledFrames(40);
+  expect(odd().value).not.toBe("-12");
+});
+
+test("with nothing ticked the sweep does nothing and says so", async () => {
+  const user = await openCollatzSweeping();
+  expect(screen.queryByText("Tick at least one setting to sweep.")).toBeNull();
+  await user.click(sweepBox("Even-step angle (°)"));
+  await user.click(sweepBox("Odd-step angle (°)"));
+  expect(screen.getByText("Tick at least one setting to sweep.")).toBeInTheDocument();
+  const [e, o] = [even().value, odd().value];
+  await settledFrames(40);
+  expect([even().value, odd().value]).toEqual([e, o]);
+  expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+  await user.click(sweepBox("Odd-step angle (°)"));
+  expect(screen.queryByText("Tick at least one setting to sweep.")).toBeNull();
+});
+
+test("the zoom of a zoom sweep can be switched off on its own", async () => {
+  const user = await openViz("mandelbrot", "Mandelbrot set");
+  await user.click(screen.getByRole("button", { name: "Animated sweep" }));
+  const zoom = screen.getByRole("button", { name: "Sweep zoom" });
+  expect(zoom).toHaveAttribute("aria-pressed", "true");
+  expect(zoom).toHaveTextContent("⟳ sweeping zoom");
+  await settledFrames(20);
+
+  await user.click(zoom);
+  expect(screen.getByRole("button", { name: "Sweep zoom" })).toHaveAttribute("aria-pressed", "false");
+  expect(screen.queryByText("⟳ sweeping zoom")).toBeNull();
+  // Let anything already started finish drawing, then check that nothing is redrawn any more.
+  for (let i = 0; i < 20; i++) await act(async () => new Promise((r) => setTimeout(r, 10)));
+  resetCanvasCalls();
+  await settledFrames(20);
+  expect(calls).toHaveLength(0);
+  expect(screen.getByText("Tick at least one setting to sweep.")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Sweep zoom" }));
+  expect(screen.getByRole("button", { name: "Sweep zoom" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("the choice is kept by share links, saved copies and export files", async () => {
+  const module = (await findEntry("collatz-coral").load()).default;
+  const p = applyPreset(module, "sweep");
+  const config = { ...defaultsOf(module), values: { ...p.values, sweepOn_oddAngle: false }, presetId: "sweep" };
+
+  const enc = await encodeConfig(module, config);
+  const dec = await decodeConfig(module, enc.payload);
+  expect(dec.replaced).toEqual([]);
+  expect(dec.config.values).toMatchObject({ sweep: true, sweepOn_oddAngle: false, sweepOn_evenAngle: true });
+
+  const text = JSON.stringify(buildExport([{ name: "Half", config }]));
+  const r = await parseImport(text, async (id) => (await findEntry(id).load()).default);
+  expect(r.replaced).toEqual([]);
+  expect(r.items[0].config.values).toMatchObject({ sweepOn_oddAngle: false, sweepOn_evenAngle: true });
+});
+
+test("share links only mention a sweep choice when it differs from the default", async () => {
+  const module = (await findEntry("collatz-coral").load()).default;
+  const p = applyPreset(module, "sweep");
+  const all = await encodeConfig(module, { ...defaultsOf(module), values: p.values, presetId: "sweep" });
+  expect(JSON.stringify(all)).not.toContain("sweepOn_");
+  const one = await encodeConfig(module, { ...defaultsOf(module), values: { ...p.values, sweepOn_evenAngle: false }, presetId: "sweep" });
+  expect(one.payload.length).toBeGreaterThan(all.payload.length);
+});
+
+test("links made before this choice existed sweep every setting", async () => {
+  const module = (await findEntry("collatz-coral").load()).default;
+  const p = applyPreset(module, "sweep");
+  const old = { ...defaultsOf(module), values: { ...p.values } };
+  delete old.values.sweepOn_evenAngle;
+  delete old.values.sweepOn_oddAngle;
+  const enc = await encodeConfig(module, old);
+  const dec = await decodeConfig(module, enc.payload);
+  expect(dec.replaced).toEqual([]);
+  expect(dec.config.values).toMatchObject({ sweepOn_evenAngle: true, sweepOn_oddAngle: true });
+});
+
+test("Reset to defaults and the Animated sweep preset put every setting back in the sweep", async () => {
+  const user = await openCollatzSweeping();
+  await user.click(sweepBox("Odd-step angle (°)"));
+  expect(sweepBox("Odd-step angle (°)")).not.toBeChecked();
+  await user.click(screen.getByRole("button", { name: "Animated sweep" })); // the preset
+  expect(sweepBox("Odd-step angle (°)")).toBeChecked();
+
+  await user.click(sweepBox("Odd-step angle (°)"));
+  await user.click(screen.getByRole("button", { name: "Reset to defaults" }));
+  expect(screen.queryByRole("checkbox", { name: /^Sweep / })).toBeNull(); // sweep is off again
+  await user.click(screen.getByRole("button", { name: "Animated sweep" }));
+  expect(sweepBox("Odd-step angle (°)")).toBeChecked();
 });

@@ -74,6 +74,18 @@ jobs:
             "CORS_ORIGIN=$CORS_ORIGIN" \
           | ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "umask 077 && cat > $APP_DIR/.env"
 
+      - name: Install the systemd unit
+        run: |
+          # Keeps the unit in step with deploy/brain-harness.service, and recreates it
+          # if the instance never had it ("Unit brain-harness.service not found").
+          # Sent over stdin, like the .env above.
+          ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "
+            set -e
+            sudo tee /etc/systemd/system/brain-harness.service > /dev/null
+            sudo systemctl daemon-reload
+            sudo systemctl enable brain-harness
+          " < deploy/brain-harness.service
+
       - name: Install dependencies and restart
         run: |
           ssh -i ~/.ssh/ec2 "$EC2_USER@$EC2_HOST" "

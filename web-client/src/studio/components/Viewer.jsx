@@ -5,7 +5,8 @@ import { createLoop } from "../core/loop.js";
 import { randomSeed } from "../core/rng.js";
 import { decodeConfig } from "../core/shareLink.js";
 import { prefersReducedMotion } from "../core/reducedMotion.js";
-import { createSweepDriver, sweptKeys } from "../core/sweep.js";
+import { fullscreenSupported, enterFullscreen, exitFullscreen, isFullscreen, FULLSCREEN_EVENTS } from "../core/fullscreen.js";
+import { createSweepDriver, sweptKeys, activeSweptKeys, isSweepKey, sweepOnKey } from "../core/sweep.js";
 import KnobPanel from "./KnobPanel.jsx";
 import SeedKnob from "./knobs/SeedKnob.jsx";
 import PresetMenu from "./PresetMenu.jsx";
@@ -14,19 +15,28 @@ import HowItWorks from "./HowItWorks.jsx";
 import ShareMenu from "./ShareMenu.jsx";
 import SaveDialog from "./SaveDialog.jsx";
 
-// The shell's own sweep knobs: they never reach the module's update().
-const SHELL_KEYS = new Set(["sweep", "sweepSpeed"]);
 const NO_KEYS = new Set();
 
 const stepsFor = (module, values) =>
   typeof module.stepsPerFrame === "function" ? module.stepsPerFrame(values) : module.stepsPerFrame ?? 1;
 
+// In full screen the drawing area is limited to this many pixels (a 4K screen at 2x would be
+// 33 million, far too slow for the heavy visualizations); the browser scales it up to the screen.
+const MAX_FULLSCREEN_PIXELS = 4_000_000;
+const FULLSCREEN_REFUSED = "Full screen isn't available here, or the browser blocked it.";
+
 function canvasSize(container) {
+  const maxDpr = Math.min(2, window.devicePixelRatio || 1);
+  if (isFullscreen(container)) {
+    const cssW = Math.max(240, container.clientWidth || window.innerWidth || 640);
+    const cssH = Math.max(240, container.clientHeight || window.innerHeight || 480);
+    const dpr = Math.min(maxDpr, Math.sqrt(MAX_FULLSCREEN_PIXELS / (cssW * cssH)));
+    return { cssW, cssH, dpr, w: Math.floor(cssW * dpr), h: Math.floor(cssH * dpr) };
+  }
   const cssW = Math.max(240, container?.clientWidth || 640);
   const maxH = Math.max(240, (window.innerHeight || 800) * 0.72);
   const cssH = Math.round(Math.min(cssW * 0.75, maxH));
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  return { cssW, cssH, dpr, w: Math.round(cssW * dpr), h: Math.round(cssH * dpr) };
+  return { cssW, cssH, dpr: maxDpr, w: Math.round(cssW * maxDpr), h: Math.round(cssH * maxDpr) };
 }
 
 /**
@@ -43,6 +53,8 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [canFullscreen, setCanFullscreen] = useState(false);
 
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -220,6 +232,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
       canvas.style.height = `${size.cssH}px`;
       canvas.width = size.w;
       canvas.height = size.h;
+      if (handleRef.current) handleRef.current.ctx.dpr = size.dpr; // lowered in full screen on big displays
       instRef.current?.resize(size.w, size.h);
     });
     ro.observe(el);
@@ -230,6 +243,34 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   useEffect(() => {
     if (!active) loopRef.current?.pause();
   }, [active]);
+
+  // 5. Full screen: follow the browser (Esc leaves it without telling us), and leave it when this viewer goes away.
+  useEffect(() => {
+    const el = containerRef.current;
+    setCanFullscreen(fullscreenSupported(el));
+    const sync = () => setFullscreen(isFullscreen(el));
+    FULLSCREEN_EVENTS.forEach((e) => document.addEventListener(e, sync));
+    return () => {
+      FULLSCREEN_EVENTS.forEach((e) => document.removeEventListener(e, sync));
+      if (isFullscreen(el)) exitFullscreen();
+    };
+  }, []);
+
+  async function onFullscreen() {
+    const el = containerRef.current;
+    if (!el) return;
+    if (isFullscreen(el)) {
+      await exitFullscreen();
+      return;
+    }
+    const r = await enterFullscreen(el);
+    if (!r.ok) {
+      setNotice(FULLSCREEN_REFUSED);
+      return;
+    }
+    // The canvas keeps the keyboard, so Space (play/pause) and the module's own keys keep working.
+    canvasRef.current?.focus({ preventScroll: true });
+  }
 
   // --- Config changes from the panel ---
 
@@ -252,7 +293,9 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
     const next = { ...cfg, values: { ...cfg.values, [key]: value }, presetId: null };
     setConfig(next);
     setNotice(null);
-    if (SHELL_KEYS.has(key)) {
+    // The shell's own sweep settings never reach the module's update(). Switching one
+    // target in or out needs no reset: the driver notices it on its next tick.
+    if (isSweepKey(key)) {
       if (key === "sweep") {
         sweepRef.current?.reset();
         // A still module only moves while its sweep is on.
@@ -431,6 +474,8 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   }
 
   const ready = module && config;
+  const sweepingKeys = ready && config.values.sweep ? new Set(activeSweptKeys(module, config.values)) : NO_KEYS;
+  const zoomSweeping = sweepingKeys.has("view");
   const interactionHint = module?.interactive ? `${entry.name}. Interactive: see How it works for controls.` : entry.name;
 
   return (
@@ -496,10 +541,31 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
                 </button>
               </div>
             )}
+            {ready && canFullscreen && (
+              <button
+                type="button"
+                className="fullscreen-btn"
+                aria-pressed={fullscreen}
+                aria-label={fullscreen ? "Exit full screen" : "Full screen"}
+                title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
+                onClick={onFullscreen}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                  <path d={fullscreen ? "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" : "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"} />
+                </svg>
+              </button>
+            )}
             {ready && config.values.sweep && sweptKeys(module).includes("view") && (
-              <span className="sweep-badge sweep-badge-zoom" id="sweep-badge-view">
-                ⟳ sweeping zoom
-              </span>
+              <button
+                type="button"
+                className={`sweep-badge sweep-badge-zoom${zoomSweeping ? "" : " sweep-badge-off"}`}
+                id="sweep-badge-view"
+                aria-label="Sweep zoom"
+                aria-pressed={zoomSweeping}
+                onClick={() => onKnobChange(sweepOnKey({ view: "zoom" }), !zoomSweeping)}
+              >
+                {zoomSweeping ? "⟳ sweeping zoom" : "Sweep zoom"}
+              </button>
             )}
             {!ready && <p className="canvas-loading">Loading…</p>}
             {computing !== null && (
@@ -548,7 +614,9 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
                 values={config.values}
                 onChange={onKnobChange}
                 onReset={onReset}
-                sweeping={config.values.sweep ? new Set(sweptKeys(module)) : NO_KEYS}
+                sweeping={sweepingKeys}
+                sweepable={config.values.sweep ? new Set(sweptKeys(module)) : NO_KEYS}
+                onToggleSweep={(key, on) => onKnobChange(sweepOnKey({ key }), on)}
               >
                 {module.random && (
                   <SeedKnob seed={config.seed} onChange={onSeed} onRandomize={() => onSeed(randomSeed())} />

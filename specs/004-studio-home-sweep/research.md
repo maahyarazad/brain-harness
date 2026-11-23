@@ -182,3 +182,12 @@ User knob changes keep today's progressive drawing for quick feedback. `sweep.co
 
 **Fallback**: the `<img>` sits on top of the existing gradient and symbol. Until it loads, or if it fails (`onError` hides it), the card looks as it does today (FR-024). Fixed `width`/`height` and the card's existing `aspect-ratio: 4/3` prevent layout shift.
 
+## R12: Loading screen with progress (User Story 7)
+
+- **Where:** in `web-client/index.html` (`#boot-loader`), so the HTML the server sends shows it before any app code runs. Nothing changes in `server/` or nginx.
+- **Library:** `@lottiefiles/dotlottie-wc` 0.12.2, pinned with npm (the CDN snippet uses `@latest` and a third-party request). The player's WebAssembly file defaults to a CDN, so `public/dotlottie-player.wasm` (1.2 MB, from `@lottiefiles/dotlottie-web` 0.83.2, the version the player uses) is served from this site and `setWasmUrl("/dotlottie-player.wasm")` is called before the element is created. The bundle still contains the default CDN addresses as fallbacks that are never used. Update the wasm file whenever `@lottiefiles/dotlottie-web` is updated.
+- **Animation:** `public/tetris-loop.lottie` (1.4 KB), in a `#boot-anim` box that is always 100 × 100 px, created by `src/boot/index.js` after the wasm URL is set. If it fails, the percentage still shows. It is not in the percentage (it loads after the loader starts).
+- **Percentage:** `build/bootAssets.js` writes `window.__BOOT_ASSETS__` (url and size) into the page: entry chunk and imports, the `StudioPage` chunk, their CSS, the logo and the 23 pictures. `src/boot/progress.js` fetches them, counting streamed bytes (listed sizes are uncompressed, as the stream is). It shows at most 99 % until every file has finished, and a failed file counts as loaded. The loader leaves when all are loaded and `#root` holds something other than `.studio-loading`, or after 15 s.
+- **Dev server:** no list, so the loader leaves when the app mounts.
+- **nginx:** serves `.lottie` as a static file (`application/octet-stream`) and `.wasm` as `application/wasm` (default `mime.types`); the deploy workflow now fetches both.
+

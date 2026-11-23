@@ -5,6 +5,9 @@ import {
   phaseOf,
   createSweepDriver,
   sweptKeys,
+  activeSweptKeys,
+  isSweepKey,
+  sweepOnKey,
   SWEEP_KNOBS,
 } from "../../../studio/core/sweep.js";
 
@@ -92,7 +95,7 @@ describe("withSweep", () => {
 
   test("adds the sweep knobs and an Animated sweep preset", () => {
     const m = withSweep(base);
-    expect(m.knobs.map((k) => k.key)).toEqual(["a", "sweep", "sweepSpeed"]);
+    expect(m.knobs.map((k) => k.key)).toEqual(["a", "sweep", "sweepSpeed", "sweepOn_a"]);
     const speed = m.knobs.find((k) => k.key === "sweepSpeed");
     expect(speed).toMatchObject({ min: 0.1, max: 4, step: 0.1, default: 1 });
     expect(speed.when({ sweep: false })).toBe(false);
@@ -102,7 +105,7 @@ describe("withSweep", () => {
 
   test("is idempotent", () => {
     const m = withSweep(withSweep(base));
-    expect(m.knobs).toHaveLength(3);
+    expect(m.knobs).toHaveLength(4);
     expect(m.presets).toHaveLength(2);
   });
 
@@ -125,12 +128,46 @@ describe("withSweep", () => {
     expect(SWEEP_KNOBS.map((k) => k.key)).toEqual(["sweep", "sweepSpeed"]);
     expect(sweptKeys({ sweep: { targets: [{ key: "a" }, { view: "zoom" }] } })).toEqual(["a", "view"]);
   });
+
+  test("each target gets a hidden on/off knob, after sweepSpeed, including a zoom target", () => {
+    const m = withSweep({
+      ...base,
+      defaultView: { cx: 0, cy: 0, zoom: 1 },
+      sweep: { ...base.sweep, targets: [...base.sweep.targets, { view: "zoom", mode: "log", min: 1, max: 9 }] },
+    });
+    expect(m.knobs.map((k) => k.key)).toEqual(["a", "sweep", "sweepSpeed", "sweepOn_a", "sweepOn_view"]);
+    for (const k of m.knobs.slice(3)) {
+      expect(k).toMatchObject({ type: "toggle", default: true, hidden: true });
+      expect(k.when({ sweep: true })).toBe(true);
+      expect(k.when({ sweep: false })).toBe(false);
+    }
+    expect(sweepOnKey({ key: "a" })).toBe("sweepOn_a");
+    expect(sweepOnKey({ view: "zoom" })).toBe("sweepOn_view");
+    expect(base.knobs).toHaveLength(1); // still not mutated
+  });
+});
+
+describe("isSweepKey and activeSweptKeys", () => {
+  const module = { sweep: { targets: [{ key: "a" }, { key: "b" }, { view: "zoom" }] } };
+
+  test("isSweepKey recognises the shell's own sweep keys only", () => {
+    for (const k of ["sweep", "sweepSpeed", "sweepOn_a", "sweepOn_view"]) expect(isSweepKey(k)).toBe(true);
+    for (const k of ["angle", "sweeper", "count", ""]) expect(isSweepKey(k)).toBe(false);
+  });
+
+  test("activeSweptKeys drops the switched-off targets, keeps the order, and treats a missing value as on", () => {
+    expect(activeSweptKeys(module, {})).toEqual(["a", "b", "view"]);
+    expect(activeSweptKeys(module, { sweepOn_b: false })).toEqual(["a", "view"]);
+    expect(activeSweptKeys(module, { sweepOn_a: false, sweepOn_b: false, sweepOn_view: false })).toEqual([]);
+    expect(activeSweptKeys(module, { sweepOn_a: true })).toEqual(["a", "b", "view"]);
+    expect(activeSweptKeys({}, {})).toEqual([]);
+  });
 });
 
 describe("createSweepDriver", () => {
   function setup(sweep, { values = {}, view = null, busy = false, done = false, playback = 1 } = {}) {
-    const module = withSweep({ id: "m", knobs: [rangeKnob, { key: "r", type: "choice", default: "x", options: [] }], presets: [], sweep });
-    let cfg = { values: { a: 0, r: "x", sweep: true, sweepSpeed: 1, ...values }, view };
+    const module = withSweep({ id: "m", knobs: [rangeKnob, { ...rangeKnob, key: "b" }, { key: "r", type: "choice", default: "x", options: [] }], presets: [], sweep });
+    let cfg = { values: { a: 0, b: 0, r: "x", sweep: true, sweepSpeed: 1, ...values }, view };
     let time = 0;
     const state = { busy, done, playback };
     const apply = vi.fn((vals, keys, viewPatch) => {
@@ -255,5 +292,89 @@ describe("createSweepDriver", () => {
     const s = setup(wave, { values: { a: 7 } });
     s.run(16);
     expect(Math.abs(s.cfg().values.a - 7)).toBeLessThan(0.5);
+  });
+
+  describe("choosing which settings are swept", () => {
+    const two = {
+      periodMs: 1000,
+      targets: [
+        { key: "a", mode: "wave", min: 0, max: 10 },
+        { key: "b", mode: "wave", min: 0, max: 10, phase: 0.25 },
+      ],
+    };
+
+    test("a switched-off target is never written", () => {
+      const s = setup(two, { values: { sweepOn_b: false, b: 3 } });
+      s.run(1000);
+      expect(s.cfg().values.b).toBe(3);
+      expect(s.apply.mock.calls.length).toBeGreaterThan(0);
+      for (const [vals, keys] of s.apply.mock.calls) {
+        expect(keys).toEqual(["a"]);
+        expect("b" in vals).toBe(false);
+      }
+    });
+
+    test("with every target off nothing is applied", () => {
+      const s = setup(two, { values: { sweepOn_a: false, sweepOn_b: false } });
+      s.run(1600);
+      expect(s.apply).not.toHaveBeenCalled();
+    });
+
+    test("a target switched back on resumes from its current value, without a jump", () => {
+      const s = setup(two, { values: { sweepOn_b: false, b: 3 } });
+      s.run(300);
+      s.setValue("b", 7); // the user edits it while it is out of the sweep
+      s.setValue("sweepOn_b", true); // the driver notices on its next tick
+      s.run(16);
+      expect(Math.abs(s.cfg().values.b - 7)).toBeLessThan(0.5);
+      s.run(250);
+      expect(s.cfg().values.b).not.toBe(7);
+    });
+
+    test("editing a switched-off target is not mistaken for the sweep being moved", () => {
+      const s = setup(two, { values: { sweepOn_b: false } });
+      s.run(100);
+      const phaseBefore = s.cfg().values.a;
+      s.setValue("b", 9);
+      s.run(16);
+      // "a" carries on smoothly: its value only moves by about one tick's worth
+      expect(Math.abs(s.cfg().values.a - phaseBefore)).toBeLessThan(1);
+    });
+
+    test("a zoom target can be switched off on its own", () => {
+      const s = setup(
+        {
+          periodMs: 1000,
+          targets: [
+            { key: "a", mode: "wave", min: 0, max: 10 },
+            { view: "zoom", mode: "log", min: 1, max: 100 },
+          ],
+        },
+        { values: { sweepOn_view: false }, view: { cx: 0, cy: 0, zoom: 5 } }
+      );
+      s.run(500);
+      expect(s.cfg().view.zoom).toBe(5);
+      for (const [, keys, patch] of s.apply.mock.calls) {
+        expect(keys).toEqual(["a"]);
+        expect(patch).toBeNull();
+      }
+    });
+
+    test("run sweeps count only the active targets", () => {
+      const s = setup(
+        {
+          kind: "run",
+          holdMs: 100,
+          targets: [
+            { key: "r", mode: "steps", list: ["x", "y"] },
+            { key: "b", mode: "steps", list: [1, 2, 3, 4, 5, 6] },
+          ],
+        },
+        { values: { sweepOn_b: false, b: 2 }, done: true }
+      );
+      s.run(150); // long enough for exactly one step (holdMs is 100)
+      expect(s.cfg().values.r).toBe("y"); // one step is half the list of "r", not 1/6 of the longest list
+      expect(s.cfg().values.b).toBe(2);
+    });
   });
 });
