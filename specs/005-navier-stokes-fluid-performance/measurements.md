@@ -30,8 +30,8 @@ Device unless stated: the development machine (Apple M2, macOS, Chrome 159 headl
 | SC-011 | Unchanged default pictures, unchanged old links, the 12 animated ones meeting FR-035 | **Met in the automated checks**: the 11 existing static pictures hash-identical at Medium (`baseline.gpu.test.js`), old links decode to the default Quality (`quality.catalog.test.js`), and all 12 animated ones pass their exactness or similarity tests. "At Auto on a device that keeps up" does not arise (no ported one has Auto). | tests |
 | SC-012 | Redraw counts clean; every earlier test still passes | **Met**: 959 jsdom tests pass (baseline 675), and the redraw-count tests pass. Re-checked on the last run; three timing-dependent tests failed under heavy machine load on earlier runs and pass alone. | tests |
 | SC-013 | Paused, finished or hidden uses under 1% of a core | **Frame requests: 0 in 2 s** for a finished sort and for a paused Game of Life (a running one makes 60 a second). **CPU use was not profiled**, so the 1% figure is not measured. | idle section below |
-| SC-014 | Each of the 12 at Medium at least as smooth as today, on laptop and phone | **Not measured** with the bench page (T094 not run). On the laptop every one holds 60 fps in the browser checks, and so did the old paths. **Phone: not measured.** | |
-| SC-015 | Life, Reaction–diffusion, Boids, Elementary CA at 30 fps or better at 2x the default size or count | **Boids: measured, 60 fps at 2,000 boids (6.7 times the default 300), on both the GPU and processor paths.** The other three: **not measured.** | |
+| SC-014 | Each of the 12 at Medium at least as smooth as today, on laptop and phone | **Laptop: met**: all 12 hold 60 fps on the GPU path at default settings and at their heaviest settings, equal to the processor path. **Phone: not measured.** | The twelve GPU ports below |
+| SC-015 | Life, Reaction–diffusion, Boids, Elementary CA at 30 fps or better at 2x the default size or count | **Laptop: met** at 60 fps on the GPU path: Life at grid width 512, Boids at 2,000 (6.7x), Elementary CA at width 1,024 (2.6x). **Reaction–diffusion's largest offered grid is 1.5x its default**, so 2x cannot be set; at that largest grid it runs at 60 fps. Phone: not measured. | The twelve GPU ports below |
 | SC-016 | Six rule-based ones identical to today's, 5 seeds, 1,000+ steps | **Met in the automated checks**: Life 1,000 steps x 5 seeds x every preset; Elementary CA a full screen and 150 rows more x 5 seeds x every preset; Langton 3,000 steps x 5 seeds x every preset; Sorting every algorithm to the end x 5 seeds; Maze every generator and solver to the end x 5 seeds; Recamán 2 to 2,000 terms. | tests |
 | SC-017 | The interface audit covers every component, and a reason for each left alone | **Written** (`render-audit.md`); the claim of full coverage is the file's own and was not independently checked. | |
 
@@ -189,6 +189,86 @@ Device unless stated: the development machine (Apple M2, macOS, Chrome 159 headl
 | A loop driving a sweep never idles | covered by a Viewer test (a sweep needs the frames to start its next run) |
 
 SC-013 asks for under 1% of one core on the reference laptop; "0 animation frames" is far under that, but CPU use was not measured with a profiler.
+
+## The twelve GPU ports (US5, 2026-11-25)
+
+Device: the development machine (Apple M2, macOS), headless Chrome 159 on the real GPU. **The reference phone was not available.** The machine was not idle (other applications were running; the load average was 5 to 9), so small differences are noise.
+
+### Bench page rows, default settings, GPU path then processor path
+
+`work ms/frame` is **not comparable between the two paths**: for a GPU instance it includes a wait for the graphics card to finish (`finish()`), for a processor instance it is only the time in `step()` and `render()`, because a 2D canvas draws later and out of sight. So the GPU rows read 1 to 2 ms where the processor rows read 0.1 to 0.6 ms without that meaning the GPU path is slower. The columns that can be compared are frame time and the longest single call.
+
+| Visualization | Level | Path | Device | Frame ms (mean) | Frame ms (p95) | fps | Work ms/frame (mean) | Work ms/frame (p95) | Time to picture ms | Longest single call ms | Phase |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| game-of-life | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.8 | 60.0 | 1.24 | 2.00 | not measured | 10.3 | US5 |
+| elementary-ca | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 1.78 | 2.40 | not measured | 16.9 | US5 |
+| langtons-ant | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 1.44 | 2.20 | not measured | 17.9 | US5 |
+| recaman | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 1.40 | 2.00 | not measured | 9.3 | US5 |
+| sorting | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 1.55 | 2.30 | not measured | 13.5 | US5 |
+| maze | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 1.12 | 1.90 | not measured | 19.8 | US5 |
+| gray-scott | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 1.82 | 2.80 | not measured | 15.9 | US5 |
+| boids | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.8 | 60.0 | 1.80 | 2.40 | not measured | 16.3 | US5 |
+| lorenz | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.8 | 60.0 | 1.39 | 2.10 | not measured | 39.5 | US5 |
+| double-pendulum | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.8 | 60.0 | 1.42 | 2.20 | not measured | 38.2 | US5 |
+| fourier-epicycles | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 1.53 | 2.40 | not measured | 34.4 | US5 |
+| times-table | default | gpu | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 1.41 | 2.10 | not measured | 14.2 | US5 |
+| game-of-life | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.8 | 60.0 | 1.08 | 4.40 | not measured | 5.9 | US5 |
+| elementary-ca | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 2.33 | 4.10 | not measured | 6.9 | US5 |
+| langtons-ant | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 0.34 | 0.70 | not measured | 6.4 | US5 |
+| recaman | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.8 | 60.0 | 0.13 | 0.30 | not measured | 5.6 | US5 |
+| sorting | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.8 | 60.0 | 0.20 | 0.40 | not measured | 0.7 | US5 |
+| maze | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 0.19 | 0.30 | not measured | 5.5 | US5 |
+| gray-scott | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 0.15 | 0.30 | not measured | 30.9 | US5 |
+| boids | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 0.57 | 1.00 | not measured | 11.8 | US5 |
+| lorenz | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.8 | 60.0 | 0.13 | 0.30 | not measured | 21.9 | US5 |
+| double-pendulum | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 0.50 | 1.20 | not measured | 26.5 | US5 |
+| fourier-epicycles | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.8 | 60.0 | 0.17 | 0.40 | not measured | 37.9 | US5 |
+| times-table | default | processor | dev machine (Apple M2, macOS), headless Chrome 159.0.0.0 | 16.7 | 16.7 | 60.0 | 0.21 | 0.40 | not measured | 8.5 | US5 |
+
+**FR-025 (no single call over 50 ms): met on this machine** for every GPU row (longest 39.5 ms, Lorenz; then 38.2 ms, Double pendulum; 34.4 ms, Fourier). The longest calls are the first, where the shaders are compiled. **Not shown to hold on a slow GPU**, where compiling takes longer.
+
+### Frame rate at the heaviest settings, GPU path against processor path
+
+Five seconds of animation frames after a 2.5 s settle, in a real browser, no CPU throttle.
+
+| Visualization | Heaviest setting used | GPU path fps (p95 frame ms) | Processor path fps (p95 frame ms) |
+|---|---|---|---|
+| game-of-life | Grid width 512 | 60 (16.8) | 60 (16.8) |
+| elementary-ca | Width 1,024 | 60 (16.7) | 60 (16.8) |
+| langtons-ant | Grid 512 | 60 (16.8) | 60 (16.8) |
+| recaman | 2,000 terms | 60 (16.8) | 60 (16.7) |
+| sorting | 1,000 bars | 60 (16.7) | 60 (16.7) |
+| maze | Grid width 150 | 60 (16.7) | 59.4 (16.7) |
+| gray-scott | Grid 384 x 288 (the largest offered) | 60 (16.8) | 60 (16.8) |
+| boids | 2,000 boids | 60 (16.7) | 60 (16.7) |
+| lorenz | Trail 20,000 | 60 (16.7) | 60 (16.8) |
+| double-pendulum | Trail 5,000 | 60 (16.7) | 60 (16.7) |
+| fourier-epicycles | 512 circles | 60 (16.8) | 60 (16.7) |
+| times-table | N = 1,000, Animate m on | 60 (16.8) | 60 (16.8) |
+
+**With the CPU throttled to a sixth of its speed** (Chrome's CPU throttle: a stand-in for a weak processor, **not a phone**, and it slows only the processor, not the graphics card):
+
+| Visualization | Heaviest setting used | GPU path fps (p95 frame ms) | Processor path fps (p95 frame ms) |
+|---|---|---|---|
+| game-of-life | Grid width 512 | 60 (16.7) | 47.4 (33.4) |
+| elementary-ca | Width 1,024 | 60 (16.7) | 36.2 (33.4) |
+| langtons-ant | Grid 512 | 60 (16.7) | 60 (16.8) |
+| recaman | 2,000 terms | 60 (16.7) | 60 (16.8) |
+| sorting | 1,000 bars | 60 (16.8) | 60 (16.8) |
+| maze | Grid width 150 | 59 (16.8) | 59.6 (16.8) |
+| gray-scott | Grid 384 x 288 (the largest offered) | 60 (16.7) | 60 (16.7) |
+| boids | 2,000 boids | 60 (16.7) | 47.9 (33.4) |
+| lorenz | Trail 20,000 | 60 (16.7) | 58.6 (16.7) |
+| double-pendulum | Trail 5,000 | 60 (16.7) | 49.4 (16.8) |
+| fourier-epicycles | 512 circles | 57.6 (16.8) | 60 (16.8) |
+| times-table | N = 1,000, Animate m on | 60 (16.8) | 60 (16.7) |
+
+**What this shows, and what it does not.**
+1. On the fast machine nothing separates the two paths: all twelve hold 60 fps at their heaviest settings on both. The ports do not make anything faster **here**, because nothing here was slow.
+2. With the processor slowed 6 times, the processor path falls behind on the ones that are heavy on the processor: Game of Life 47 fps, Elementary CA 36, Boids 48, Double pendulum 49 and Lorenz 59, while the GPU path stays at 60 (Fourier 58, Maze 59). The other six stay at 60 on both, so for them the ports change nothing measurable.
+3. This is **a processor-only slowdown**. A real weak phone also has a weak graphics card, which this does not model, so it probably **overstates** the gain on a phone. It shows the processing work the ports take off the processor, not a phone result.
+4. **SC-014** (at least as smooth as today at Medium on the laptop): met, equal at 60 fps. Phone: not measured.
+5. **SC-015** (30 fps or better at twice the default size or count at High): measured on the laptop at 60 fps on the GPU path for Game of Life (grid width 512), Boids (2,000, about 6.7 times the default 300) and Elementary CA (width 1,024, about 2.6 times the default 400). **Reaction–diffusion's largest grid (384) is only 1.5 times its default (256)**, so "twice the default" cannot be set; at 384 it runs at 60 fps.
 
 ## Interface redraws (US6, 2026-11-24)
 
