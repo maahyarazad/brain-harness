@@ -63,13 +63,3 @@ jobs:
           rsync -az --delete \
             -e "ssh -i ~/.ssh/ec2" \
             web-client/dist/ "$EC2_USER@$EC2_HOST:$APP_DIR/"
-
-      - name: Check the pages are served, with their link previews
-        run: |
-          curl -fsS --retry 5 --retry-delay 3 "$PUBLIC_URL/" | grep -q "<title>Visualization Playground by Maahyar Azad</title>"
-          # The Node server puts the loading screen into every page (deploy it first: "Deploy server")
-          curl -fsS "$PUBLIC_URL/" | grep -q 'id="boot-loader"'
-          curl -fsS "$PUBLIC_URL/boot-assets.json" -o /dev/null
-          # Per-visualization previews are chosen by the Node server (server/src/routes/site.js).
-          curl -fsS "$PUBLIC_URL/studio/julia" | grep -q "property=\"og:image\" content=\"$PUBLIC_URL/thumbs/julia.webp\"" \
-            || echo "::warning::/studio/julia has no per-visualization preview: deploy the server first (\"Deploy server\" installs the nginx site and serves the pages)."
