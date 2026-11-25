@@ -35,6 +35,8 @@ cd web-client
 npm install
 npm run dev               # studio: http://localhost:5173 · playground: http://localhost:5173/playground
                           # catalog pictures (dev only): http://localhost:5173/studio/__thumbnails
+                          # frame-time measurements (dev only): http://localhost:5173/studio/__bench
+                          # add ?gpu=off to any visualization to force its non-GPU path
 ```
 
 **The API key lives only in `server/.env`.** That file is git-ignored, and the browser never sees the key. The playground talks to the server through Vite's dev proxy.
@@ -59,7 +61,9 @@ Pushing to `main` deploys to EC2 through two GitHub Actions workflows. One-time 
 
 ```bash
 cd server && npm test        # uses a fake Claude client, so no API calls
-cd web-client && npm test
+cd web-client && npm test            # the jsdom suite: no browser needed
+cd web-client && npm run test:gpu    # real shaders in headless Chromium (software WebGL2); run `npx playwright install chromium` once
+cd web-client && npm run test:all    # both
 ```
 
 Manual checks for every feature are in [`specs/001-brain-harness-test-ui/quickstart.md`](specs/001-brain-harness-test-ui/quickstart.md).

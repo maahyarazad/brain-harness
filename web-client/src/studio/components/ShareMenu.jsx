@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { encodeConfig, buildShareUrl } from "../core/shareLink.js";
 import { downloadPng, exportSaved, downloadBlob } from "../core/exportFile.js";
 import { canRecordVideo, startRecording, videoFilename } from "../core/videoRecorder.js";
@@ -14,7 +14,7 @@ function formatElapsed(s) {
  * onRecordStart: called when recording starts (the viewer starts playback).
  * active: false while the studio is hidden; an active recording is then cancelled.
  */
-export default function ShareMenu({ module, config, canvasRef, vizId, name, recordable = false, onRecordStart, active = true }) {
+function ShareMenu({ module, config, canvasRef, vizId, name, recordable = false, onRecordStart, active = true }) {
   const [message, setMessage] = useState(null);
   const [fallbackUrl, setFallbackUrl] = useState(null);
   const [elapsed, setElapsed] = useState(null); // null when not recording
@@ -135,3 +135,5 @@ export default function ShareMenu({ module, config, canvasRef, vizId, name, reco
     </div>
   );
 }
+
+export default memo(ShareMenu);

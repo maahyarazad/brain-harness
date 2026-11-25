@@ -8,6 +8,9 @@ const StudioPage = lazy(() => import("./studio/StudioPage.jsx"));
 // is a build-time constant, so production builds drop it entirely.
 const ThumbnailStudio = import.meta.env.DEV ? lazy(() => import("./studio/dev/ThumbnailStudio.jsx")) : null;
 export const THUMBNAILS_PATH = "/studio/__thumbnails";
+// Development only, same rule: the page that measures frame times (specs/005-.../research.md R10).
+const BenchPage = import.meta.env.DEV ? lazy(() => import("./studio/dev/BenchPage.jsx")) : null;
+export const BENCH_PATH = "/studio/__bench";
 
 export const NavContext = createContext({ path: "/", search: "", navigate: () => {} });
 export const useNav = () => useContext(NavContext);
@@ -66,6 +69,10 @@ export default function Root() {
       {ThumbnailStudio && loc.path === THUMBNAILS_PATH ? (
         <Suspense fallback={<p className="studio-loading">Loading…</p>}>
           <ThumbnailStudio />
+        </Suspense>
+      ) : BenchPage && loc.path === BENCH_PATH ? (
+        <Suspense fallback={<p className="studio-loading">Loading…</p>}>
+          <BenchPage />
         </Suspense>
       ) : isPlayground ? (
         <Suspense fallback={<p className="studio-loading">Loading…</p>}>

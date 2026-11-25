@@ -1,5 +1,7 @@
+import { memo } from "react";
+
 /** One tool call Claude made while answering: name, input and result. */
-export default function ToolCallCard({ call }) {
+function ToolCallCard({ call }) {
   return (
     <details className="tool-card">
       <summary>
@@ -13,3 +15,5 @@ export default function ToolCallCard({ call }) {
     </details>
   );
 }
+
+export default memo(ToolCallCard);

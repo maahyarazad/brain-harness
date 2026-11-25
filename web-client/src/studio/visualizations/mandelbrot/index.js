@@ -28,6 +28,8 @@ export default {
   },
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: {},
+  // Quality (specs/005 contracts/quality.md): Low is at least 20% cheaper than High, measured: 57% on the weak stand-in (19 vs 44 ms). See specs/005-.../measurements.md.
+  quality: { scale: { low: 0.5, medium: 1, high: 1 } },
   create(canvas, config, ctx) {
     return createEscapeInstance(canvas, config, ctx, {
       getC: () => null,

@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, memo, useMemo } from "react";
 import RangeKnob from "./knobs/RangeKnob.jsx";
 import ChoiceKnob from "./knobs/ChoiceKnob.jsx";
 import ToggleKnob from "./knobs/ToggleKnob.jsx";
@@ -7,20 +7,12 @@ import PaletteKnob from "./knobs/PaletteKnob.jsx";
 
 const COMPONENTS = { range: RangeKnob, choice: ChoiceKnob, toggle: ToggleKnob, text: TextKnob, palette: PaletteKnob };
 
-/**
- * `sweepable`: keys the sweep can move (empty while the sweep is off); `sweeping`: the ones it is
- * moving right now; `onToggleSweep(key, on)` switches one in or out of the sweep.
- */
-export default function KnobPanel({
-  module,
-  values,
-  onChange,
-  onReset,
-  sweeping = new Set(),
-  sweepable = new Set(),
-  onToggleSweep,
-  children,
-}) {
+// Shared empty sets: a `new Set()` default parameter would be a new object on every render and
+// defeat memo for the whole panel (specs/005 research R8).
+const NONE = new Set();
+
+/** The knobs that are visible for these values, grouped by their `group`, in order. */
+function visibleGroups(module, values) {
   const visible = module.knobs.filter((k) => !k.hidden && (!k.when || k.when(values)));
   const groups = [];
   for (const k of visible) {
@@ -29,6 +21,16 @@ export default function KnobPanel({
     if (!g) groups.push((g = { name, knobs: [] }));
     g.knobs.push(k);
   }
+  return groups;
+}
+
+/**
+ * `sweepable`: keys the sweep can move (empty while the sweep is off); `sweeping`: the ones it is
+ * moving right now; `onToggleSweep(key, on)` switches one in or out of the sweep.
+ * `onChange(key, value)` is handed straight to every knob, so one setting changing redraws only its own control.
+ */
+function KnobPanel({ module, values, onChange, onReset, sweeping = NONE, sweepable = NONE, onToggleSweep, children }) {
+  const groups = useMemo(() => visibleGroups(module, values), [module, values]);
   return (
     <section className="panel knob-panel" aria-labelledby="knobs-heading">
       <div className="panel-head">
@@ -45,9 +47,7 @@ export default function KnobPanel({
             if (!C) return null;
             const canSweep = sweepable.has(k.key) && onToggleSweep;
             const moving = sweeping.has(k.key);
-            const knob = (
-              <C knob={k} value={values[k.key]} onChange={(v) => onChange(k.key, v)} describedBy={moving ? `sweep-badge-${k.key}` : undefined} />
-            );
+            const knob = <C knob={k} value={values[k.key]} onChange={onChange} describedBy={moving ? `sweep-badge-${k.key}` : undefined} />;
             if (!canSweep) return <Fragment key={k.key}>{knob}</Fragment>;
             // The sweep can move this setting: say whether it does (FR-013), and let the user decide.
             return (
@@ -77,3 +77,5 @@ export default function KnobPanel({
     </section>
   );
 }
+
+export default memo(KnobPanel);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 /** Read text aloud with the browser's built-in speech synthesis. */
 export function useSpeechOutput() {
@@ -27,5 +27,5 @@ export function useSpeechOutput() {
 
   useEffect(() => stop, [stop]);
 
-  return { supported, speaking, speak, stop };
+  return useMemo(() => ({ supported, speaking, speak, stop }), [supported, speaking, speak, stop]);
 }

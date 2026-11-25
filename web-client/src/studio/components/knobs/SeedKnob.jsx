@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { MAX_SEED, isValidSeed } from "../../core/rng.js";
 
-export default function SeedKnob({ seed, onChange, onRandomize }) {
+function SeedKnob({ seed, onChange, onRandomize }) {
   const [text, setText] = useState(String(seed));
   const [error, setError] = useState(null);
   useEffect(() => setText(String(seed)), [seed]);
@@ -48,3 +48,5 @@ export default function SeedKnob({ seed, onChange, onRandomize }) {
     </div>
   );
 }
+
+export default memo(SeedKnob);

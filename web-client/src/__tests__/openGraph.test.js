@@ -15,9 +15,9 @@ function meta(html, key) {
   return m?.[1];
 }
 
-test("one page for the site, the catalog and each of the 23 visualizations", () => {
+test("one page for the site, the catalog and each of the 24 visualizations", () => {
   expect(Object.keys(pages)).toEqual(["index.html", "og/studio.html", ...CATALOG.map((e) => `og/studio/${e.id}.html`)]);
-  expect(CATALOG).toHaveLength(23);
+  expect(CATALOG).toHaveLength(24);
 });
 
 test("the site page names the app and uses the Julia set picture", () => {

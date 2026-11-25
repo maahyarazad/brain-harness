@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { validateConfig, defaultsOf, applyPreset, describeReplaced } from "../core/knobs.js";
 import { createModuleContext } from "../core/moduleContext.js";
 import { createLoop } from "../core/loop.js";
@@ -7,7 +7,12 @@ import { decodeConfig } from "../core/shareLink.js";
 import { prefersReducedMotion } from "../core/reducedMotion.js";
 import { fullscreenSupported, enterFullscreen, exitFullscreen, isFullscreen, FULLSCREEN_EVENTS } from "../core/fullscreen.js";
 import { createSweepDriver, sweptKeys, activeSweptKeys, isSweepKey, sweepOnKey } from "../core/sweep.js";
+import { QUALITY_KEY, effectiveLevel, hasAuto, scaleFor } from "../core/quality.js";
+import { createQualityGovernor } from "../core/qualityGovernor.js";
 import KnobPanel from "./KnobPanel.jsx";
+import ActionBar from "./ActionBar.jsx";
+import StatsReadout from "./StatsReadout.jsx";
+import { createStatsStore } from "../core/statsStore.js";
 import SeedKnob from "./knobs/SeedKnob.jsx";
 import PresetMenu from "./PresetMenu.jsx";
 import PlaybackBar from "./PlaybackBar.jsx";
@@ -25,18 +30,36 @@ const stepsFor = (module, values) =>
 const MAX_FULLSCREEN_PIXELS = 4_000_000;
 const FULLSCREEN_REFUSED = "Full screen isn't available here, or the browser blocked it.";
 
-function canvasSize(container) {
+// The drawing area is never made smaller than this by a quality scale (device pixels per side).
+const MIN_SCALED_PIXELS = 160;
+// Pointers a multiTouch module can track at once; more are ignored.
+const MAX_POINTERS = 10;
+
+/**
+ * Canvas size. `scale` (0 to 1) is the quality level's drawing-resolution factor: it shrinks the
+ * pixels drawn, never the size on the page, so the picture is simply coarser (specs/005 contracts/quality.md).
+ */
+function canvasSize(container, scale = 1) {
   const maxDpr = Math.min(2, window.devicePixelRatio || 1);
+  let size;
   if (isFullscreen(container)) {
     const cssW = Math.max(240, container.clientWidth || window.innerWidth || 640);
     const cssH = Math.max(240, container.clientHeight || window.innerHeight || 480);
     const dpr = Math.min(maxDpr, Math.sqrt(MAX_FULLSCREEN_PIXELS / (cssW * cssH)));
-    return { cssW, cssH, dpr, w: Math.floor(cssW * dpr), h: Math.floor(cssH * dpr) };
+    size = { cssW, cssH, dpr, w: Math.floor(cssW * dpr), h: Math.floor(cssH * dpr) };
+  } else {
+    const cssW = Math.max(240, container?.clientWidth || 640);
+    const maxH = Math.max(240, (window.innerHeight || 800) * 0.72);
+    const cssH = Math.round(Math.min(cssW * 0.75, maxH));
+    size = { cssW, cssH, dpr: maxDpr, w: Math.round(cssW * maxDpr), h: Math.round(cssH * maxDpr) };
   }
-  const cssW = Math.max(240, container?.clientWidth || 640);
-  const maxH = Math.max(240, (window.innerHeight || 800) * 0.72);
-  const cssH = Math.round(Math.min(cssW * 0.75, maxH));
-  return { cssW, cssH, dpr: maxDpr, w: Math.round(cssW * maxDpr), h: Math.round(cssH * maxDpr) };
+  if (scale >= 1) return size;
+  return {
+    ...size,
+    dpr: size.dpr * scale,
+    w: Math.max(MIN_SCALED_PIXELS, Math.round(size.w * scale)),
+    h: Math.max(MIN_SCALED_PIXELS, Math.round(size.h * scale)),
+  };
 }
 
 /**
@@ -48,15 +71,26 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   const [loadError, setLoadError] = useState(null);
   const [config, setConfigState] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [stats, setStats] = useState(null);
   const [computing, setComputing] = useState(null); // null | progress fraction
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [saveOpen, setSaveOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [canFullscreen, setCanFullscreen] = useState(false);
+  // A module can ask for a fresh <canvas> (a canvas keeps the first context type it was given),
+  // show a message over the picture, or report that it cannot start (specs/005 module-additions.md).
+  const [canvasEpoch, setCanvasEpoch] = useState(0);
+  const [message, setMessage] = useState(null);
+  const [unsupported, setUnsupported] = useState(false);
+
+  // Per-frame counters live outside React state: a running animation redraws only the readout, not the
+  // viewer and every knob (specs/005 research R8).
+  const statsStore = useMemo(() => createStatsStore(), []);
 
   const canvasRef = useRef(null);
+  const forceProcessorRef = useRef(false); // once a restart asked for it, this viewer stays on the processor path
+  const governorRef = useRef(null); // Auto quality, animated modules only
+  const createInstanceRef = useRef(null);
   const containerRef = useRef(null);
   const configRef = useRef(null);
   const instRef = useRef(null);
@@ -104,6 +138,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
     loopRef.current?.destroy();
     loopRef.current = null;
     sweepRef.current = null;
+    governorRef.current = null;
     try {
       instRef.current?.destroy();
     } catch {
@@ -136,6 +171,39 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
     }
   }, []);
 
+  // Quality (specs/005 contracts/quality.md). The level's drawing-resolution scale is applied to the
+  // canvas here; anything module-specific goes through setQuality() (or update() for modules without one).
+  const applyQualityLevel = useCallback(
+    (level, { automatic }) => {
+      const m = module;
+      const canvas = canvasRef.current;
+      const inst = instRef.current;
+      if (!m || !canvas) return;
+      const size = canvasSize(containerRef.current, scaleFor(m, level));
+      if (canvas.width !== size.w || canvas.height !== size.h) {
+        canvas.style.width = `${size.cssW}px`;
+        canvas.style.height = `${size.cssH}px`;
+        canvas.width = size.w;
+        canvas.height = size.h;
+        if (handleRef.current) handleRef.current.ctx.dpr = size.dpr;
+        inst?.resize(size.w, size.h);
+      }
+      if (typeof inst?.setQuality === "function") inst.setQuality(level, { automatic });
+      else if (!automatic) scheduleUpdate(QUALITY_KEY);
+      loopRef.current?.wake();
+    },
+    // scheduleUpdate only reads refs, so the copy from this render is as good as any.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [module]
+  );
+
+  const startGovernor = useCallback(() => {
+    governorRef.current = createQualityGovernor({
+      onLevel: (level) => applyQualityLevel(level, { automatic: true }),
+      onNotice: setNotice,
+    });
+  }, [applyQualityLevel]);
+
   // 2. Create (or recreate) the instance for a configuration.
   const createInstance = useCallback(
     (cfg) => {
@@ -143,8 +211,12 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
       const canvas = canvasRef.current;
       if (!m || !canvas) return;
       teardown();
-      setStats(null);
-      const size = canvasSize(containerRef.current);
+      statsStore.clear();
+      setMessage(null);
+      setUnsupported(false);
+      // Auto starts at Medium (never above it). A fixed choice is used as it is.
+      if (hasAuto(m) && cfg.values[QUALITY_KEY] === "auto") startGovernor();
+      const size = canvasSize(containerRef.current, scaleFor(m, effectiveLevel(cfg.values, governorRef.current?.level())));
       canvas.style.width = `${size.cssW}px`;
       canvas.style.height = `${size.cssH}px`;
       canvas.width = size.w;
@@ -152,9 +224,15 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
       const handle = createModuleContext({
         seed: cfg.seed,
         dpr: size.dpr,
+        gpuForced: forceProcessorRef.current ? "off" : "auto",
         onProgress,
         onNotice: setNotice,
-        onStats: setStats,
+        onStats: statsStore.set,
+        onMessage: setMessage,
+        onRestart: ({ forceProcessor } = {}) => {
+          if (forceProcessor) forceProcessorRef.current = true;
+          setCanvasEpoch((n) => n + 1);
+        },
         onView: (view) => setConfig({ ...configRef.current, view, presetId: configRef.current.presetId }),
         onInput: (input) => setConfig({ ...configRef.current, input, presetId: null }),
         onValues: (vals) => setConfig({ ...configRef.current, values: { ...configRef.current.values, ...vals }, presetId: null }),
@@ -167,6 +245,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
         setNotice(`This visualization failed to start: ${err.message}`);
         return;
       }
+      setUnsupported(Boolean(instRef.current?.unsupported));
       if (m.sweep) {
         // One step of an animated sweep: the same path as a knob change, marked
         // so modules keep the old picture until the new one is complete.
@@ -176,6 +255,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
           setConfig(next);
           if (typeof m.stepsPerFrame === "function") loopRef.current?.setBaseSteps(stepsFor(m, next.values));
           instRef.current?.update(next, keys, { sweep: true });
+          loopRef.current?.wake();
         };
         sweepRef.current = createSweepDriver({
           module: m,
@@ -192,9 +272,13 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
         loopRef.current = createLoop({
           step: m.animated ? () => instRef.current?.step() : () => {},
           render: m.animated ? () => instRef.current?.render() : () => {},
-          onFrame: () => {
+          onFrame: (ts) => {
+            governorRef.current?.frame(ts);
             if (configRef.current?.values.sweep) sweepRef.current?.tick();
           },
+          // A finished run (a completed sort or maze) needs no more frames until something changes.
+          // A sweep needs the loop to start the next run, so a loop with a sweep on never idles.
+          isIdle: () => !configRef.current?.values.sweep && (instRef.current?.isIdle?.() ?? false),
           baseSteps: stepsFor(m, cfg.values),
           onStateChange: setPlaying,
         });
@@ -204,8 +288,9 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
         else setPlaying(false);
       }
     },
-    [module, teardown, onProgress, onOpenViz, setConfig]
+    [module, teardown, onProgress, onOpenViz, setConfig, startGovernor, statsStore]
   );
+  createInstanceRef.current = createInstance;
 
   useEffect(() => {
     if (module && configRef.current) createInstance(configRef.current);
@@ -214,6 +299,12 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [module]);
 
+  // A module asked for a fresh canvas (ctx.requestRestart): React has mounted a new <canvas> by now,
+  // so create the instance again, with the same settings, on it.
+  useEffect(() => {
+    if (canvasEpoch > 0 && configRef.current) createInstanceRef.current(configRef.current);
+  }, [canvasEpoch]);
+
   // 3. Resize: keep settings, just tell the instance.
   useEffect(() => {
     if (!module) return;
@@ -221,7 +312,8 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
     if (!el || typeof ResizeObserver === "undefined") return;
     let last = null;
     const ro = new ResizeObserver(() => {
-      const size = canvasSize(el);
+      const level = effectiveLevel(configRef.current?.values ?? {}, governorRef.current?.level());
+      const size = canvasSize(el, scaleFor(module, level));
       const key = `${size.w}x${size.h}`;
       if (key === last) return;
       const first = last === null;
@@ -234,6 +326,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
       canvas.height = size.h;
       if (handleRef.current) handleRef.current.ctx.dpr = size.dpr; // lowered in full screen on big displays
       instRef.current?.resize(size.w, size.h);
+      loopRef.current?.wake();
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -273,10 +366,12 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   }
 
   // --- Config changes from the panel ---
+  // Every handler here is a useCallback over refs and state setters, so the memoized children they are
+  // handed to (the knobs, the presets, the playback bar) see the same function on every redraw.
 
   const pendingKeys = useRef(new Set());
   const updateFrame = useRef(null);
-  function scheduleUpdate(key) {
+  const scheduleUpdate = useCallback((key) => {
     pendingKeys.current.add(key);
     if (updateFrame.current !== null) return;
     const run = () => {
@@ -284,53 +379,119 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
       const keys = [...pendingKeys.current];
       pendingKeys.current.clear();
       instRef.current?.update(configRef.current, keys);
+      loopRef.current?.wake(); // a finished run starts again when its settings change
     };
     updateFrame.current = typeof requestAnimationFrame === "function" ? requestAnimationFrame(run) : setTimeout(run, 0);
-  }
+  }, []);
 
-  function onKnobChange(key, value) {
-    const cfg = configRef.current;
-    const next = { ...cfg, values: { ...cfg.values, [key]: value }, presetId: null };
-    setConfig(next);
-    setNotice(null);
-    // The shell's own sweep settings never reach the module's update(). Switching one
-    // target in or out needs no reset: the driver notices it on its next tick.
-    if (isSweepKey(key)) {
-      if (key === "sweep") {
-        sweepRef.current?.reset();
-        // A still module only moves while its sweep is on.
-        if (!module.animated) {
-          if (value && activeRef.current && !prefersReducedMotion(motionRef.current)) loopRef.current?.play();
-          else if (!value) loopRef.current?.pause();
+  const onKnobChange = useCallback(
+    (key, value) => {
+      const cfg = configRef.current;
+      const next = { ...cfg, values: { ...cfg.values, [key]: value }, presetId: null };
+      setConfig(next);
+      setNotice(null);
+      // The shell's own sweep settings never reach the module's update(). Switching one
+      // target in or out needs no reset: the driver notices it on its next tick.
+      if (isSweepKey(key)) {
+        if (key === "sweep") {
+          sweepRef.current?.reset();
+          loopRef.current?.wake(); // an idle loop has to start driving the sweep
+          // A still module only moves while its sweep is on.
+          if (!module.animated) {
+            if (value && activeRef.current && !prefersReducedMotion(motionRef.current)) loopRef.current?.play();
+            else if (!value) loopRef.current?.pause();
+          }
         }
+        return;
       }
-      return;
-    }
-    if (typeof module.stepsPerFrame === "function") loopRef.current?.setBaseSteps(stepsFor(module, next.values));
-    scheduleUpdate(key);
-  }
+      if (typeof module.stepsPerFrame === "function") loopRef.current?.setBaseSteps(stepsFor(module, next.values));
+      if (key === QUALITY_KEY) {
+        // Quality is the shell's own setting too: a fixed level stops Auto, and Auto starts again from Medium.
+        if (hasAuto(module) && value === "auto") {
+          startGovernor();
+          applyQualityLevel("medium", { automatic: true });
+        } else {
+          governorRef.current = null;
+          applyQualityLevel(value === "auto" ? "medium" : value, { automatic: false });
+        }
+        return;
+      }
+      scheduleUpdate(key);
+    },
+    [module, setConfig, startGovernor, applyQualityLevel, scheduleUpdate]
+  );
 
-  function restartWith(next) {
-    setConfig(next);
-    setNotice(null);
-    createInstance(next);
-  }
+  const restartWith = useCallback(
+    (next) => {
+      setConfig(next);
+      setNotice(null);
+      // A canvas keeps the context type it was first given, and a GPU instance gives its context back when
+      // it is destroyed, so the same canvas cannot start another GPU instance. Mount a fresh one: the
+      // epoch effect creates the instance on it, with this configuration (specs/005 research R2).
+      if (instRef.current?.path === "gpu") {
+        setCanvasEpoch((n) => n + 1);
+        return;
+      }
+      createInstance(next);
+    },
+    [setConfig, createInstance]
+  );
 
-  function onReset() {
-    restartWith(defaultsOf(module));
-  }
+  const onReset = useCallback(() => restartWith(defaultsOf(module)), [module, restartWith]);
 
-  function onPreset(id) {
-    const p = applyPreset(module, id);
-    if (p) {
-      const view = p.view ?? (module.defaultView ? { ...module.defaultView } : null);
-      restartWith({ ...configRef.current, values: p.values, input: p.input, presetId: id, view });
-    }
-  }
+  const onPreset = useCallback(
+    (id) => {
+      const p = applyPreset(module, id);
+      if (p) {
+        const view = p.view ?? (module.defaultView ? { ...module.defaultView } : null);
+        // applyPreset starts from the defaults, which would reset the visitor's Quality choice.
+        const current = configRef.current.values[QUALITY_KEY];
+        const values = current === undefined ? p.values : { ...p.values, [QUALITY_KEY]: current };
+        restartWith({ ...configRef.current, values, input: p.input, presetId: id, view });
+      }
+    },
+    [module, restartWith]
+  );
 
-  function onSeed(seed) {
-    restartWith({ ...configRef.current, seed });
-  }
+  const onAction = useCallback((id) => {
+    instRef.current?.action?.(id);
+    loopRef.current?.wake();
+  }, []);
+
+  const onRestartInstance = useCallback(() => {
+    instRef.current?.reset?.();
+    loopRef.current?.wake();
+  }, []);
+
+  const onSeed = useCallback((seed) => restartWith({ ...configRef.current, seed }), [restartWith]);
+  const onRandomSeed = useCallback(() => onSeed(randomSeed()), [onSeed]);
+
+  const onPlay = useCallback(() => loopRef.current?.play(), []);
+  const onPause = useCallback(() => loopRef.current?.pause(), []);
+  const onStep = useCallback(() => loopRef.current?.stepOnce(), []);
+  const onSpeed = useCallback((s) => {
+    speedRef.current = s;
+    setSpeed(s);
+    loopRef.current?.setSpeed(s);
+  }, []);
+  const onToggleSweep = useCallback((key, on) => onKnobChange(sweepOnKey({ key }), on), [onKnobChange]);
+
+  // Derived values the panel receives: computed again only when what they depend on changes.
+  const sweepOn = Boolean(config?.values.sweep);
+  const sweepValues = config?.values;
+  const sweepingKeys = useMemo(
+    () => (module && sweepOn ? new Set(activeSweptKeys(module, sweepValues)) : NO_KEYS),
+    [module, sweepOn, sweepValues]
+  );
+  const sweepable = useMemo(() => (module && sweepOn ? new Set(sweptKeys(module)) : NO_KEYS), [module, sweepOn]);
+  const seed = config?.seed;
+  const seedKnob = useMemo(
+    () => (module?.random ? <SeedKnob seed={seed} onChange={onSeed} onRandomize={onRandomSeed} /> : null),
+    [module, seed, onSeed, onRandomSeed]
+  );
+  // Recording is an explicit request to see motion, so it starts playback even when reduced motion
+  // started the animation paused.
+  const onRecordStart = useMemo(() => (module?.animated || sweepOn ? () => loopRef.current?.play() : undefined), [module, sweepOn]);
 
   // --- Canvas input ---
 
@@ -345,7 +506,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   function send(type, e, extra = {}) {
     if (!module?.interactive || !instRef.current?.pointer) return undefined;
     const p = e && "clientX" in e ? toCanvas(e) : { x: 0, y: 0 };
-    return instRef.current.pointer({
+    const result = instRef.current.pointer({
       type,
       ...p,
       button: e?.button ?? 0,
@@ -353,6 +514,8 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
       ctrlKey: Boolean(e?.ctrlKey),
       ...extra,
     });
+    loopRef.current?.wake(); // input can change what a finished run shows
+    return result;
   }
 
   // Active pointers (pointerId → canvas position). With two pointers down the
@@ -368,6 +531,13 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   function onPointerDown(e) {
     if (module?.interactive) e.currentTarget.setPointerCapture?.(e.pointerId);
     const p = toCanvas(e);
+    if (module?.multiTouch) {
+      // Every finger is its own stroke: no pinch, no cancelled drag (contracts/module-additions.md).
+      if (pointers.current.size >= MAX_POINTERS && !pointers.current.has(e.pointerId)) return;
+      pointers.current.set(e.pointerId, p);
+      send("down", e, { pointerId: e.pointerId });
+      return;
+    }
     pointers.current.set(e.pointerId, p);
     if (pointers.current.size === 2) {
       // The first pointer was dragging: tell the module to drop that drag.
@@ -381,6 +551,10 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
 
   function onPointerMove(e) {
     if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, toCanvas(e));
+    if (module?.multiTouch) {
+      send("move", e, { pointerId: e.pointerId });
+      return;
+    }
     if (pointers.current.size >= 2) {
       if (pointers.current.size !== 2) return;
       const { x, y, dist } = pinchState();
@@ -393,6 +567,12 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   }
 
   function onPointerEnd(type, e) {
+    if (module?.multiTouch) {
+      const known = pointers.current.delete(e.pointerId);
+      if (!known && type === "up") return; // an extra finger we never forwarded
+      send(type, e, { pointerId: e.pointerId });
+      return;
+    }
     const wasPinching = pointers.current.size >= 2;
     const known = pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinchDist.current = null;
@@ -474,7 +654,6 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
   }
 
   const ready = module && config;
-  const sweepingKeys = ready && config.values.sweep ? new Set(activeSweptKeys(module, config.values)) : NO_KEYS;
   const zoomSweeping = sweepingKeys.has("view");
   const interactionHint = module?.interactive ? `${entry.name}. Interactive: see How it works for controls.` : entry.name;
 
@@ -489,7 +668,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
           {saved && <span className="viewer-sub"> · {entry.name}</span>}
         </h2>
         <span className="spacer" />
-        {ready && (
+        {ready && !unsupported && (
           <>
             <button type="button" className="btn btn-primary" onClick={() => setSaveOpen(true)}>
               Save
@@ -502,9 +681,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
               name={saved?.name ?? entry.name}
               active={active}
               recordable={module.animated || module.interactive || Boolean(config.values.sweep)}
-              // Recording is an explicit request to see motion, so it starts
-              // playback even when reduced motion started the animation paused.
-              onRecordStart={module.animated || config.values.sweep ? () => loopRef.current?.play() : undefined}
+              onRecordStart={onRecordStart}
             />
           </>
         )}
@@ -514,6 +691,7 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
         <div className="viewer-stage">
           <div className="canvas-wrap" ref={containerRef}>
             <canvas
+              key={canvasEpoch}
               ref={canvasRef}
               className="viz-canvas"
               tabIndex={0}
@@ -568,45 +746,43 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
               </button>
             )}
             {!ready && <p className="canvas-loading">Loading…</p>}
+            {message && (
+              <div className="canvas-message" role="status">
+                <p>{message.text}</p>
+                {message.actionLabel && (
+                  <button type="button" className="btn btn-primary" onClick={() => message.onAction?.()}>
+                    {message.actionLabel}
+                  </button>
+                )}
+              </div>
+            )}
             {computing !== null && (
               <div className="progress" role="progressbar" aria-label="Drawing" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(computing * 100)}>
                 <div className="progress-bar" style={{ width: `${Math.round(computing * 100)}%` }} />
               </div>
             )}
           </div>
-          {ready && (module.animated || config.values.sweep) && (
+          {ready && !unsupported && (module.animated || config.values.sweep) && (
             <PlaybackBar
               playing={playing}
               speed={speed}
-              onPlay={() => loopRef.current?.play()}
-              onPause={() => loopRef.current?.pause()}
-              onStep={() => loopRef.current?.stepOnce()}
-              onSpeed={(s) => {
-                speedRef.current = s;
-                setSpeed(s);
-                loopRef.current?.setSpeed(s);
-              }}
-              onReset={module.animated ? () => instRef.current?.reset?.() : undefined}
+              onPlay={onPlay}
+              onPause={onPause}
+              onStep={onStep}
+              onSpeed={onSpeed}
+              onReset={module.animated ? onRestartInstance : undefined}
             />
           )}
+          {ready && !unsupported && module.actions?.length > 0 && <ActionBar actions={module.actions} onAction={onAction} />}
           <div className="viewer-status" aria-live="polite">
             {notice && <p className="studio-notice">{notice}</p>}
-            {stats && (
-              <dl className="stats">
-                {Object.entries(stats).map(([k, v]) => (
-                  <div key={k}>
-                    <dt>{k.replace(/([A-Z])/g, " $1").toLowerCase()}</dt>
-                    <dd>{typeof v === "number" ? v.toLocaleString() : String(v)}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
+            <StatsReadout store={statsStore} />
           </div>
         </div>
 
         <aside className="viewer-side">
           <HowItWorks text={module?.howItWorks ?? entry.summary} />
-          {ready && (
+          {ready && !unsupported && (
             <>
               <PresetMenu presets={module.presets} activeId={config.presetId} onApply={onPreset} />
               <KnobPanel
@@ -615,12 +791,10 @@ export default function Viewer({ entry, initialConfig, sharePayload, saved, acti
                 onChange={onKnobChange}
                 onReset={onReset}
                 sweeping={sweepingKeys}
-                sweepable={config.values.sweep ? new Set(sweptKeys(module)) : NO_KEYS}
-                onToggleSweep={(key, on) => onKnobChange(sweepOnKey({ key }), on)}
+                sweepable={sweepable}
+                onToggleSweep={onToggleSweep}
               >
-                {module.random && (
-                  <SeedKnob seed={config.seed} onChange={onSeed} onRandomize={() => onSeed(randomSeed())} />
-                )}
+                {seedKnob}
               </KnobPanel>
             </>
           )}

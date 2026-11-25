@@ -3,7 +3,7 @@ import { getHealth } from "../api.js";
 
 const POLL_MS = 10_000;
 
-/** Polls /health so the header can show Online / Offline. */
+/** Polls /health so the header can show Online / Offline. `checkedAt` is when the status last changed. */
 export function useServerStatus() {
   const [status, setStatus] = useState({ online: null, checkedAt: null });
 
@@ -16,7 +16,8 @@ export function useServerStatus() {
       } catch {
         online = false;
       }
-      if (!cancelled) setStatus({ online, checkedAt: new Date().toISOString() });
+      // Same answer as last time: keep the state object, so the page does not redraw every poll for nothing.
+      if (!cancelled) setStatus((prev) => (prev.online === online ? prev : { online, checkedAt: new Date().toISOString() }));
     }
     check();
     const timer = setInterval(check, POLL_MS);

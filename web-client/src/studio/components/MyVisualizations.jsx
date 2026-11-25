@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { listSaved, subscribe, renameSaved, duplicateSaved, deleteSaved, addMany } from "../core/storage.js";
 import { exportSaved, parseImport, readFileText } from "../core/exportFile.js";
 import { findEntry } from "../catalog.js";
@@ -42,11 +42,24 @@ export default function MyVisualizations({ onOpen, showEmpty = false }) {
     }
   }
 
-  function commitRename(id) {
-    const r = renameSaved(id, editName);
+  // Handlers handed to the rows keep their identity, so typing a new name redraws only the row being renamed.
+  const editNameRef = useRef("");
+  editNameRef.current = editName;
+  const startRename = useCallback((r) => {
+    setEditing(r.id);
+    setEditName(r.name);
+  }, []);
+  const commitRename = useCallback((id) => {
+    const r = renameSaved(id, editNameRef.current);
     if (!r.ok) setMessage(r.reason);
     setEditing(null);
-  }
+  }, []);
+  const cancelRename = useCallback(() => setEditing(null), []);
+  const duplicate = useCallback((id) => {
+    const x = duplicateSaved(id);
+    if (!x.ok) setMessage(x.reason);
+  }, []);
+  const exportOne = useCallback((r) => exportSaved([r]), []);
 
   if (!items.length && !showEmpty && !message) {
     return (
@@ -87,53 +100,23 @@ export default function MyVisualizations({ onOpen, showEmpty = false }) {
       )}
       {!items.length && <p className="muted">Nothing saved yet.</p>}
       <ul className="mine-list">
-        {items.map((r) => {
-          const entry = findEntry(r.config.vizId);
-          return (
-            <li key={r.id} className="mine-item">
-              <button type="button" className="mine-open" onClick={() => onOpen(r.id)} aria-label={`Open ${r.name}`}>
-                {r.thumbnail ? <img src={r.thumbnail} alt="" /> : <span className="thumb-glyph" aria-hidden="true">{entry?.glyph ?? "?"}</span>}
-              </button>
-              <div className="mine-meta">
-                {editing === r.id ? (
-                  <input
-                    aria-label="New name"
-                    value={editName}
-                    maxLength={80}
-                    autoFocus
-                    onChange={(e) => setEditName(e.target.value)}
-                    onBlur={() => commitRename(r.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitRename(r.id);
-                      if (e.key === "Escape") setEditing(null);
-                    }}
-                  />
-                ) : (
-                  <button type="button" className="linklike mine-name" onClick={() => onOpen(r.id)}>
-                    {r.name}
-                  </button>
-                )}
-                <span className="muted">
-                  {entry?.name ?? r.config.vizId} · {new Date(r.updatedAt).toLocaleDateString()}
-                </span>
-                <div className="mine-actions">
-                  <button type="button" className="btn btn-small" onClick={() => { setEditing(r.id); setEditName(r.name); }}>
-                    Rename
-                  </button>
-                  <button type="button" className="btn btn-small" onClick={() => { const x = duplicateSaved(r.id); if (!x.ok) setMessage(x.reason); }}>
-                    Duplicate
-                  </button>
-                  <button type="button" className="btn btn-small" onClick={() => exportSaved([r])}>
-                    Export
-                  </button>
-                  <button type="button" className="btn btn-small btn-danger" onClick={() => setConfirmDelete(r)}>
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </li>
-          );
-        })}
+        {items.map((r) => (
+          <SavedRow
+            key={r.id}
+            record={r}
+            entry={findEntry(r.config.vizId)}
+            editing={editing === r.id}
+            editName={editing === r.id ? editName : null}
+            onOpen={onOpen}
+            onEditName={setEditName}
+            onStartRename={startRename}
+            onCommitRename={commitRename}
+            onCancelRename={cancelRename}
+            onDuplicate={duplicate}
+            onExport={exportOne}
+            onAskDelete={setConfirmDelete}
+          />
+        ))}
       </ul>
       {confirmDelete && (
         <ConfirmDialog
@@ -151,6 +134,54 @@ export default function MyVisualizations({ onOpen, showEmpty = false }) {
     </section>
   );
 }
+
+/** One saved visualization. Memoized: it redraws only when its own record, its own edit state or a handler changes. */
+const SavedRow = memo(function SavedRow({ record: r, entry, editing, editName, onOpen, onEditName, onStartRename, onCommitRename, onCancelRename, onDuplicate, onExport, onAskDelete }) {
+  return (
+    <li className="mine-item">
+      <button type="button" className="mine-open" onClick={() => onOpen(r.id)} aria-label={`Open ${r.name}`}>
+        {r.thumbnail ? <img src={r.thumbnail} alt="" /> : <span className="thumb-glyph" aria-hidden="true">{entry?.glyph ?? "?"}</span>}
+      </button>
+      <div className="mine-meta">
+        {editing ? (
+          <input
+            aria-label="New name"
+            value={editName}
+            maxLength={80}
+            autoFocus
+            onChange={(e) => onEditName(e.target.value)}
+            onBlur={() => onCommitRename(r.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onCommitRename(r.id);
+              if (e.key === "Escape") onCancelRename();
+            }}
+          />
+        ) : (
+          <button type="button" className="linklike mine-name" onClick={() => onOpen(r.id)}>
+            {r.name}
+          </button>
+        )}
+        <span className="muted">
+          {entry?.name ?? r.config.vizId} · {new Date(r.updatedAt).toLocaleDateString()}
+        </span>
+        <div className="mine-actions">
+          <button type="button" className="btn btn-small" onClick={() => onStartRename(r)}>
+            Rename
+          </button>
+          <button type="button" className="btn btn-small" onClick={() => onDuplicate(r.id)}>
+            Duplicate
+          </button>
+          <button type="button" className="btn btn-small" onClick={() => onExport(r)}>
+            Export
+          </button>
+          <button type="button" className="btn btn-small btn-danger" onClick={() => onAskDelete(r)}>
+            Delete
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+});
 
 function ConfirmDialog({ title, body, confirmLabel, onCancel, onConfirm }) {
   const ref = useRef(null);

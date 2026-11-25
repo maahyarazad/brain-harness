@@ -2,6 +2,8 @@
 
 Every folder in `web-client/src/studio/visualizations/<name>/` has an `index.js` whose default export satisfies this contract. The studio shell talks to modules only through it. `modules.contract.test.js` checks every catalog entry against it.
 
+> **Additions in feature 005** (optional, nothing here changes): `multiTouch`, `actions`, `quality`, `instance.setQuality`, `instance.isIdle`, `ctx.showMessage`, `ctx.requestRestart` and the GPU toolkit are specified in [`specs/005-navier-stokes-fluid-performance/contracts/module-additions.md`](../../005-navier-stokes-fluid-performance/contracts/module-additions.md).
+
 ## Export shape
 
 ```js

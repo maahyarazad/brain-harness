@@ -111,4 +111,74 @@ describe.each(CATALOG.map((e) => [e.id, e]))("%s", (id, entry) => {
     expect(b.calls.length).toBeGreaterThan(0);
     expect(b.calls).toEqual(a.calls);
   });
+  // ---- additions from specs/005-navier-stokes-fluid-performance/contracts/module-additions.md ----
+
+  test("optional shell-contract fields are valid", () => {
+    if (module.multiTouch !== undefined) {
+      expect(typeof module.multiTouch).toBe("boolean");
+      if (module.multiTouch) expect(module.interactive).toBe(true);
+    }
+    if (module.actions !== undefined) {
+      expect(Array.isArray(module.actions)).toBe(true);
+      expect(module.actions.length).toBeGreaterThanOrEqual(1);
+      expect(module.actions.length).toBeLessThanOrEqual(4);
+      expect(module.animated || module.interactive).toBe(true);
+      const ids = new Set();
+      for (const a of module.actions) {
+        expect(typeof a.id).toBe("string");
+        expect(ids.has(a.id)).toBe(false);
+        ids.add(a.id);
+        expect(typeof a.label).toBe("string");
+        expect(a.label.length).toBeGreaterThan(0);
+        expect(typeof a.title).toBe("string");
+        if (a.key !== undefined) {
+          expect(a.key).toHaveLength(1);
+          // Space, "." and R belong to the shell (play/pause, step, restart).
+          expect([" ", ".", "r", "R"]).not.toContain(a.key);
+        }
+      }
+    }
+  });
+
+  test("a quality descriptor is valid and gives the module its Quality knob", () => {
+    const knob = module.knobs.find((k) => k.key === "quality");
+    if (!module.quality) {
+      expect(knob).toBeUndefined();
+      return;
+    }
+    expect(knob).toBeDefined();
+    expect(knob.type).toBe("choice");
+    expect(knob.group).toBe("Performance");
+    expect(knob.default).toBe(module.animated ? "auto" : "medium");
+    expect(knob.options.map((o) => o.value)).toEqual(module.animated ? ["auto", "low", "medium", "high"] : ["low", "medium", "high"]);
+    const { scale, levers } = module.quality;
+    expect(scale || levers).toBeTruthy();
+    if (scale) {
+      for (const [level, f] of Object.entries(scale)) {
+        expect(["low", "medium", "high"]).toContain(level);
+        expect(f).toBeGreaterThan(0);
+        expect(f).toBeLessThanOrEqual(1);
+      }
+      // Medium is today's behaviour (FR-021).
+      if (scale.medium !== undefined) expect(scale.medium).toBe(1);
+    }
+    if (levers) {
+      for (const level of ["low", "medium", "high"]) expect(typeof levers[level]).toBe("object");
+    }
+  });
+
+  test("an instance has the methods its module's optional fields promise", async () => {
+    const { inst, handle } = await runModule(module, testConfig(module), { steps: 0 });
+    if (module.actions) expect(typeof inst.action).toBe("function");
+    // Auto changes an animated module's level without update(), so it must offer setQuality. A static module
+    // reads its levers when update(config, ["quality"]) redraws it.
+    if (module.quality?.levers && module.animated) expect(typeof inst.setQuality).toBe("function");
+    if (inst.unsupported) {
+      // A module that could not start still answers every call the shell makes.
+      for (const name of ["update", "resize", "destroy"]) expect(typeof inst[name]).toBe("function");
+      if (module.animated) for (const name of ["step", "render", "reset"]) expect(typeof inst[name]).toBe("function");
+    }
+    inst.destroy();
+    handle.dispose();
+  });
 });

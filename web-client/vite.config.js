@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { openGraph } from "./build/openGraph.js";
 import { bootAssets } from "./build/bootAssets.js";
@@ -73,6 +74,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: "./src/__tests__/setup.js",
+    // The GPU tests run in a real browser (`npm run test:gpu`, vitest.gpu.config.js).
+    exclude: [...configDefaults.exclude, "**/*.gpu.test.js"],
     // The suite is CPU-bound (kernels run on the main thread under jsdom) and its
     // files run in parallel, so allow more than the 5 s default per test.
     testTimeout: 15000,

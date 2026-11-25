@@ -1,10 +1,20 @@
+import { memo, useMemo } from "react";
 import { CATALOG, CATEGORIES } from "../catalog.js";
+import CatalogCard from "./CatalogCard.jsx";
 
-export default function CatalogGrid({ query, category, onQuery, onCategory, onOpen, notice, children }) {
+/** The entries that match the search and the category, and those grouped by category (empty groups left out). */
+function filterCatalog(query, category) {
   const q = query.trim().toLowerCase();
   const matches = CATALOG.filter(
     (e) => (!category || e.category === category) && (!q || e.name.toLowerCase().includes(q) || e.summary.toLowerCase().includes(q))
   );
+  const sections = CATEGORIES.map((c) => ({ category: c, items: matches.filter((e) => e.category === c.id) })).filter((s) => s.items.length);
+  return { matches, sections };
+}
+
+function CatalogGrid({ query, category, onQuery, onCategory, onOpen, notice, children }) {
+  // Only recomputed when the search or the category changes, not on every redraw of the page.
+  const { matches, sections } = useMemo(() => filterCatalog(query, category), [query, category]);
 
   return (
     <div className="catalog">
@@ -31,50 +41,20 @@ export default function CatalogGrid({ query, category, onQuery, onCategory, onOp
         </div>
       </div>
       {!matches.length && <p className="muted">No visualizations match.</p>}
-      {CATEGORIES.map((c) => {
-        const items = matches.filter((e) => e.category === c.id);
-        if (!items.length) return null;
-        return (
-          <section key={c.id} aria-labelledby={`cat-${c.id}`} className="catalog-section">
-            <h2 id={`cat-${c.id}`}>{c.name}</h2>
-            <ul className="cards">
-              {items.map((e) => (
-                <li key={e.id}>
-                  <a
-                    className={`card cat-${e.category}`}
-                    href={`/studio/${e.id}`}
-                    onClick={(ev) => {
-                      if (ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey) return;
-                      ev.preventDefault();
-                      onOpen(e.id);
-                    }}
-                  >
-                    <span className="card-thumb" aria-hidden="true">
-                      <span className="card-glyph">{e.glyph}</span>
-                      {/* A sample picture made by the visualization itself
-                          (public/thumbs). Until it loads, or if it
-                          fails, the symbol on the gradient shows instead. */}
-                      <img
-                        src={`/thumbs/${e.id}.webp`}
-                        alt=""
-                        width={320}
-                        height={240}
-                        loading="lazy"
-                        decoding="async"
-                        onError={(ev) => {
-                          ev.currentTarget.hidden = true;
-                        }}
-                      />
-                    </span>
-                    <span className="card-name">{e.name}</span>
-                    <span className="card-summary">{e.summary}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+      {sections.map(({ category: c, items }) => (
+        <section key={c.id} aria-labelledby={`cat-${c.id}`} className="catalog-section">
+          <h2 id={`cat-${c.id}`}>{c.name}</h2>
+          <ul className="cards">
+            {items.map((e) => (
+              <li key={e.id}>
+                <CatalogCard entry={e} onOpen={onOpen} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }
+
+export default memo(CatalogGrid);

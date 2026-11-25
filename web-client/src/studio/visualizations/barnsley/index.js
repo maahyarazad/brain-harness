@@ -40,6 +40,8 @@ export default {
   },
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { presetId: "classic" },
+  // Quality (specs/005 contracts/quality.md): Low is at least 20% cheaper than High, measured: 41% on the real GPU (19 vs 32 ms). See specs/005-.../measurements.md.
+  quality: { scale: { low: 0.5, medium: 1, high: 1 } },
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, function* (g, cfg, _ctx, { w, h }) {
       const { w1, w2, w3, w4, points, palette } = cfg.values;

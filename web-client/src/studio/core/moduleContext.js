@@ -14,6 +14,9 @@ export function createModuleContext({
   onInput = () => {},
   onValues = () => {},
   onOpen = () => {},
+  onMessage = () => {},
+  onRestart = () => {},
+  gpuForced = "auto",
 } = {}) {
   const tasks = new Set();
   let disposed = false;
@@ -43,6 +46,16 @@ export function createModuleContext({
     setInput: (input) => !disposed && onInput(input),
     setValues: (values) => !disposed && onValues(values),
     openVisualization: (vizId, config) => !disposed && onOpen(vizId, config),
+    /** "off" makes openGpu() return null, so a module takes its processor path (specs/005 R2). */
+    gpuForced: gpuForced === "off" ? "off" : "auto",
+    /** A plain-language message over the canvas, with an optional action button. */
+    showMessage(message) {
+      if (disposed || typeof message?.text !== "string" || !message.text) return;
+      onMessage({ ...message });
+    },
+    clearMessage: () => !disposed && onMessage(null),
+    /** Ask the shell to mount a fresh canvas and create the instance again. */
+    requestRestart: (options = {}) => !disposed && onRestart({ ...options }),
     /** Resolves when no kernel or progressive task is pending. */
     async idle() {
       while (tasks.size) {

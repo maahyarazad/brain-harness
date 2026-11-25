@@ -38,6 +38,8 @@ export default {
   sweep: { periodMs: 30000, targets: [{ key: "ratio", mode: "wave", min: 0.4, max: 0.7 }], presetValues: { points: 150000 } },
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { presetId: "sierpinski", values: { points: 300000 } },
+  // Quality (specs/005 contracts/quality.md): Low is at least 20% cheaper than High, measured: 43% on the real GPU (17 vs 30 ms). See specs/005-.../measurements.md.
+  quality: { scale: { low: 0.5, medium: 1, high: 1 } },
   create(canvas, config, ctx) {
     return staticInstance(canvas, config, ctx, function* (g, cfg, _ctx, { w, h }) {
       const { corners, ratio, points, restriction, includeCenter, palette } = cfg.values;

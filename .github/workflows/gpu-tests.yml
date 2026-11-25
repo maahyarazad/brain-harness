@@ -1,0 +1,42 @@
+name: GPU tests
+
+# Runs the browser test project (web-client/vitest.gpu.config.js) on software rendering.
+# A separate workflow on purpose: deploy-web-client.yml also runs the real deployment steps,
+# so it must not be used to find out whether this runner can give WebGL2.
+# Once this is green, the same two steps can be added to the deploy workflow.
+
+on:
+  pull_request:
+    paths:
+      - "web-client/**"
+      - ".github/workflows/gpu-tests.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: gpu-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web-client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web-client/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: GPU tests (software WebGL2)
+        run: npm run test:gpu

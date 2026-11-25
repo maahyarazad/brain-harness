@@ -1,19 +1,21 @@
 // Metadata for every visualization. Modules are loaded lazily with import().
 import { withSweep } from "./core/sweep.js";
+import { withQuality } from "./core/quality.js";
 
 export const CATEGORIES = [
+  { id: "simulation", name: "Simulation and emergence" },
   { id: "number-patterns", name: "Number patterns" },
   { id: "fractals", name: "Fractals" },
-  { id: "simulation", name: "Simulation and emergence" },
   { id: "geometry-dynamics", name: "Geometry and dynamics" },
   { id: "algorithms", name: "Algorithm visualizations" },
 ];
 
-// Every load adds the shell's sweep knobs and preset (core/sweep.js), so the viewer,
-// file import and share links all validate against the same knob list.
+// Every load adds the shell's sweep knobs and preset (core/sweep.js) and, for modules that
+// declare what Low, Medium and High mean for them, the Quality knob (core/quality.js), so the
+// viewer, file import and share links all validate against the same knob list.
 const e = (id, name, category, glyph, summary, load) => ({
   id, name, category, glyph, summary,
-  load: () => load().then((mod) => ({ ...mod, default: withSweep(mod.default) })),
+  load: () => load().then((mod) => ({ ...mod, default: withQuality(withSweep(mod.default)) })),
 });
 
 export const CATALOG = [
@@ -33,6 +35,7 @@ export const CATALOG = [
   e("boids", "Boids", "simulation", "➤", "Separation, alignment and cohesion produce a realistic flock.", () => import("./visualizations/boids/index.js")),
   e("langtons-ant", "Langton's ant", "simulation", "✳", "An ant turns by the color of its cell. After chaos, it builds a highway.", () => import("./visualizations/langton/index.js")),
   e("dla", "Diffusion-limited aggregation", "simulation", "❄", "Random walkers stick when they touch the cluster, growing frost and lightning shapes.", () => import("./visualizations/dla/index.js")),
+  e("fluid-simulation", "Fluid simulation", "simulation", "≋", "Drag to stir colored ink through a fluid. A simplified Navier–Stokes simulation that runs on your graphics card.", () => import("./visualizations/fluid/index.js")),
   e("lorenz", "Lorenz attractor", "geometry-dynamics", "∞", "A 3-D butterfly traced by a chaotic weather model. Two close starts drift apart.", () => import("./visualizations/lorenz/index.js")),
   e("double-pendulum", "Double pendulum", "geometry-dynamics", "⚲", "Two linked pendulums swing chaotically and trace wild paths.", () => import("./visualizations/doublePendulum/index.js")),
   e("voronoi", "Voronoi and Delaunay", "geometry-dynamics", "⬡", "Split the plane by nearest seed point, and connect neighboring seeds.", () => import("./visualizations/voronoi/index.js")),

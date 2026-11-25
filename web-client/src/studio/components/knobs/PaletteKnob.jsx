@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { PALETTE_OPTIONS, paletteColor } from "../../core/palettes.js";
 import { knobId } from "./format.js";
 
@@ -6,14 +7,14 @@ function gradient(name) {
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
-export default function PaletteKnob({ knob, value, onChange }) {
+function PaletteKnob({ knob, value, onChange }) {
   const id = knobId(knob.key);
   return (
     <div className="knob">
       <label htmlFor={id}>{knob.label}</label>
       <div className="palette-row">
         <span className="palette-swatch" style={{ background: gradient(value) }} aria-hidden="true" />
-        <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+        <select id={id} value={value} onChange={(e) => onChange(knob.key, e.target.value)}>
           {PALETTE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -24,3 +25,5 @@ export default function PaletteKnob({ knob, value, onChange }) {
     </div>
   );
 }
+
+export default memo(PaletteKnob);

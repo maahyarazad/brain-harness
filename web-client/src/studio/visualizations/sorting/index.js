@@ -2,6 +2,8 @@ import { ALGORITHMS, initialArray } from "./kernel.js";
 import { BG } from "../_shared/instance.js";
 import { clear } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
+import { openGpu } from "../_shared/gpu/index.js";
+import { createSortingGpu } from "./gpu.js";
 
 export default {
   id: "sorting",
@@ -51,6 +53,14 @@ export default {
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { values: { size: 80 }, steps: 400 },
   create(canvas, config, ctx) {
+    // The GPU path when the browser has WebGL; otherwise the processor path below, exactly as before (FR-034).
+    const gpu = openGpu(canvas, { ctx });
+    return gpu ? createSortingGpu(canvas, gpu, config, ctx) : createProcessor(canvas, config, ctx);
+  },
+};
+
+/** The processor path: the sort and its drawing on the CPU with a 2D canvas. It is the fallback and the oracle for the GPU path. */
+function createProcessor(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
     let arr, view, gen, last, comparisons, swaps, done;
@@ -116,6 +126,8 @@ export default {
       },
       /** The array is sorted: an animated sweep can start the next algorithm. */
       isDone: () => done,
+      /** A finished sort changes nothing until the settings or the array do, so the loop can stop asking for frames (FR-024). */
+      isIdle: () => done,
       render,
       reset() {
         init();
@@ -124,5 +136,4 @@ export default {
       resize: render,
       destroy() {},
     };
-  },
-};
+}

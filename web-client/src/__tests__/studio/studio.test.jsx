@@ -38,13 +38,13 @@ async function openViz(id, heading) {
 
 // ---- US1: catalog and viewer ----
 
-test("the catalog lists 23 visualizations in 5 categories", async () => {
+test("the catalog lists 24 visualizations in 5 categories", async () => {
   await openStudio();
   for (const name of ["Number patterns", "Fractals", "Simulation and emergence", "Geometry and dynamics", "Algorithm visualizations"]) {
     expect(await screen.findByRole("heading", { name })).toBeInTheDocument();
   }
   const cards = screen.getAllByRole("link").filter((a) => a.getAttribute("href")?.startsWith("/studio/"));
-  expect(cards).toHaveLength(23);
+  expect(cards).toHaveLength(24);
 });
 
 test("search filters by name and summary", async () => {
@@ -381,7 +381,7 @@ test("every card shows its visualization's picture over its symbol", async () =>
   expect(img).toHaveAttribute("height", "240");
   expect(img).toHaveAttribute("loading", "lazy");
   expect(img).toHaveAttribute("decoding", "async");
-  expect(document.querySelectorAll(".card-thumb img")).toHaveLength(23);
+  expect(document.querySelectorAll(".card-thumb img")).toHaveLength(24);
 });
 
 test("a picture that fails to load leaves the symbol showing", async () => {

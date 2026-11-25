@@ -2,6 +2,8 @@ import { pendulumRK4 } from "./kernel.js";
 import { BG } from "../_shared/instance.js";
 import { clear, DEG } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
+import { openGpu } from "../_shared/gpu/index.js";
+import { createPendulumGpu } from "./gpu.js";
 
 const DT = 1 / 240;
 const num = (key, label, min, max, step, def, extra = {}) => ({ key, label, type: "range", min, max, step, default: def, ...extra });
@@ -36,6 +38,14 @@ export default {
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { steps: 2400 },
   create(canvas, config, ctx) {
+    // The GPU path when the browser has WebGL (and can draw instanced geometry); otherwise the processor path below, exactly as before (FR-034).
+    const gpu = openGpu(canvas, { need: ["instancing"], ctx });
+    return gpu ? createPendulumGpu(canvas, gpu, config, ctx, { DT, DEG }) : createProcessor(canvas, config, ctx);
+  },
+};
+
+/** The processor path: the pendulum drawn on a 2D canvas. It is the fallback and the oracle for the GPU path. */
+function createProcessor(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
     let state, trail, time;
@@ -145,5 +155,4 @@ export default {
         }
       },
     };
-  },
-};
+}

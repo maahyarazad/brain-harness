@@ -3,6 +3,8 @@ import { registerKernel } from "../../core/workerPool.js";
 import { gridImage, fitAspect, BG } from "../_shared/instance.js";
 import { clear } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
+import { openGpu } from "../_shared/gpu/index.js";
+import { createGrayScottGpu } from "./gpu.js";
 
 registerKernel("grayScottSteps", grayScottSteps);
 
@@ -45,6 +47,14 @@ export default {
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { presetId: "maze", steps: 1500 },
   create(canvas, config, ctx) {
+    // The GPU path needs float textures to render into; without them, or without WebGL, the processor path below runs as before (FR-034).
+    const gpu = openGpu(canvas, { need: ["floatTarget"], ctx });
+    return gpu ? createGrayScottGpu(canvas, gpu, config, ctx, { ITERS_PER_STEP }) : createProcessor(canvas, config, ctx);
+  },
+};
+
+/** The processor path: the simulation in a worker with a 2D canvas. It is the fallback and the oracle for the GPU path. */
+function createProcessor(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
     let W, H, u, v, img, inFlight = null, pendingIters = 0, iterations = 0;
@@ -160,5 +170,4 @@ export default {
         }
       },
     };
-  },
-};
+}

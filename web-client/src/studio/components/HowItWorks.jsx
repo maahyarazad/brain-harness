@@ -1,4 +1,5 @@
-export default function HowItWorks({ text }) {
+import { memo } from "react";
+function HowItWorks({ text }) {
   const wide = typeof window !== "undefined" && window.innerWidth >= 900;
   return (
     <details className="panel how" open={wide}>
@@ -7,3 +8,5 @@ export default function HowItWorks({ text }) {
     </details>
   );
 }
+
+export default memo(HowItWorks);

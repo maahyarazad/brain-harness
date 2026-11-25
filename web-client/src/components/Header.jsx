@@ -1,4 +1,6 @@
-export default function Header({ online, canClear, onClear }) {
+import { memo } from "react";
+
+function Header({ online, canClear, onClear }) {
   const label = online === null ? "Checking…" : online ? "Online" : "Offline";
   const dotClass = online === null ? "" : online ? "online" : "offline";
 
@@ -16,3 +18,5 @@ export default function Header({ online, canClear, onClear }) {
     </header>
   );
 }
+
+export default memo(Header);

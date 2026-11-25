@@ -2,6 +2,8 @@ import { recaman } from "./kernel.js";
 import { BG } from "../_shared/instance.js";
 import { clear } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
+import { openGpu } from "../_shared/gpu/index.js";
+import { createRecamanGpu } from "./gpu.js";
 
 export default {
   id: "recaman",
@@ -33,6 +35,14 @@ export default {
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { values: { terms: 120 }, steps: 240 },
   create(canvas, config, ctx) {
+    // The GPU path when the browser has WebGL (and can draw instanced geometry); otherwise the processor path below, exactly as before (FR-034).
+    const gpu = openGpu(canvas, { need: ["instancing"], ctx });
+    return gpu ? createRecamanGpu(canvas, gpu, config, ctx) : createProcessor(canvas, config, ctx);
+  },
+};
+
+/** The processor path: the arcs drawn on a 2D canvas. It is the fallback and the oracle for the GPU path. */
+function createProcessor(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
     let seq = recaman(cfg.values.terms);
@@ -83,5 +93,4 @@ export default {
       resize: render,
       destroy() {},
     };
-  },
-};
+}

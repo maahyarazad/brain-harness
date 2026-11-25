@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { getCapabilities } from "../api.js";
 import SchemaForm from "./SchemaForm.jsx";
 
-function CapabilityList({ items, selected, onSelect }) {
+export const CapabilityList = memo(function CapabilityList({ items, selected, onSelect }) {
   return (
     <ul className="capability-list">
       {items.map((item) => {
@@ -18,10 +18,10 @@ function CapabilityList({ items, selected, onSelect }) {
       })}
     </ul>
   );
-}
+});
 
 /** "Tools & prompts": run any tool or prompt template the server advertises. */
-export default function CapabilityPanel({ onRun, disabled }) {
+function CapabilityPanel({ onRun, disabled }) {
   const [capabilities, setCapabilities] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -73,3 +73,5 @@ export default function CapabilityPanel({ onRun, disabled }) {
     </details>
   );
 }
+
+export default memo(CapabilityPanel);

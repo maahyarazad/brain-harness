@@ -2,6 +2,8 @@ import { parseTurnRule, antStep } from "./kernel.js";
 import { gridImage, fitAspect, BG, BG_RGB } from "../_shared/instance.js";
 import { clear } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
+import { openGpu } from "../_shared/gpu/index.js";
+import { createLangtonGpu } from "./gpu.js";
 
 // Steps per run in an animated sweep: enough for RL's "highway" to appear.
 const RUN_STEPS = 12000;
@@ -35,6 +37,14 @@ export default {
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { values: { size: 72 }, steps: 11000 },
   create(canvas, config, ctx) {
+    // The GPU path when the browser has WebGL; otherwise the processor path below, exactly as before (FR-034).
+    const gpu = openGpu(canvas, { ctx });
+    return gpu ? createLangtonGpu(canvas, gpu, config, ctx, { RUN_STEPS }) : createProcessor(canvas, config, ctx);
+  },
+};
+
+/** The processor path: the ant on the CPU with a 2D canvas. It is the fallback and the oracle for the GPU path. */
+function createProcessor(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
     let N, grid, ants, turns, img, steps;
@@ -102,5 +112,4 @@ export default {
       resize: render,
       destroy() {},
     };
-  },
-};
+}

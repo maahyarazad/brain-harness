@@ -37,6 +37,8 @@ export default {
   },
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: {},
+  // Quality (specs/005 contracts/quality.md): Low is at least 20% cheaper than High, measured: 61% on the real GPU (18 vs 46 ms). See specs/005-.../measurements.md.
+  quality: { scale: { low: 0.5, medium: 1, high: 1 } },
   create(canvas, config, ctx) {
     return createEscapeInstance(canvas, config, ctx, { getC: (v) => [v.cRe, v.cIm], span: 3.2 });
   },

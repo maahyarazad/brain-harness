@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { runPrompt, runTool, sendChat } from "../api.js";
 
 export const MAX_EXCHANGES = 20;
@@ -123,13 +123,8 @@ export function useConversation({ onAnswer } = {}) {
     setPending(false);
   }, []);
 
-  return {
-    exchanges,
-    pending,
-    isFull,
-    chatTurnCount,
-    sendPrompt,
-    runCapability,
-    clear,
-  };
+  return useMemo(
+    () => ({ exchanges, pending, isFull, chatTurnCount, sendPrompt, runCapability, clear }),
+    [exchanges, pending, isFull, chatTurnCount, sendPrompt, runCapability, clear]
+  );
 }

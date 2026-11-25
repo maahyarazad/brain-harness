@@ -2,6 +2,8 @@ import { createGrid, GENERATORS, solver, toggleWall, N, E, S, W } from "./kernel
 import { fitAspect, BG } from "../_shared/instance.js";
 import { clear } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
+import { openGpu } from "../_shared/gpu/index.js";
+import { createMazeGpu } from "./gpu.js";
 
 function validateInput(input) {
   const v = {};
@@ -47,6 +49,14 @@ export default {
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { steps: "done" },
   create(canvas, config, ctx) {
+    // The GPU path when the browser has WebGL (and can draw instanced geometry); otherwise the processor path below, exactly as before (FR-034).
+    const gpu = openGpu(canvas, { need: ["instancing"], ctx });
+    return gpu ? createMazeGpu(canvas, gpu, config, ctx) : createProcessor(canvas, config, ctx);
+  },
+};
+
+/** The processor path: the maze drawn on a 2D canvas. It is the fallback and the oracle for the GPU path. */
+function createProcessor(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
     let grid, cols, rows, phase, gen, solve, solveState, result, carved, start, end;
@@ -186,6 +196,8 @@ export default {
       },
       /** Generated and solved: an animated sweep can start the next maze. */
       isDone: () => phase === "done",
+      /** Generated and solved: nothing changes until the settings or the endpoints do (FR-024). */
+      isIdle: () => phase === "done",
       render,
       reset() {
         init();
@@ -219,5 +231,4 @@ export default {
         }
       },
     };
-  },
-};
+}

@@ -2,6 +2,8 @@ import { ruleTable, elementaryStep } from "./kernel.js";
 import { gridImage, fitAspect, BG, BG_RGB } from "../_shared/instance.js";
 import { clear } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
+import { openGpu } from "../_shared/gpu/index.js";
+import { createElementaryGpu } from "./gpu.js";
 
 export default {
   id: "elementary-ca",
@@ -33,6 +35,14 @@ export default {
   // Rule 30's noise compresses poorly, so this picture uses a lower WebP quality.
   thumbnail: { values: { rule: 30, width: 200 }, steps: "done", quality: 0.55 },
   create(canvas, config, ctx) {
+    // The GPU path when the browser has WebGL; otherwise the processor path below, exactly as before (FR-034).
+    const gpu = openGpu(canvas, { ctx });
+    return gpu ? createElementaryGpu(canvas, gpu, config, ctx) : createProcessor(canvas, config, ctx);
+  },
+};
+
+/** The processor path: the automaton on the CPU with a 2D canvas. It is the fallback and the oracle for the GPU path. */
+function createProcessor(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
     let W, H, rows, filled, table, img;
@@ -103,5 +113,4 @@ export default {
       resize: render,
       destroy() {},
     };
-  },
-};
+}

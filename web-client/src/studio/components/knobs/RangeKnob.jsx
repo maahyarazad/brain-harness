@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import { validateValue } from "../../core/knobs.js";
 import { formatValue, knobId } from "./format.js";
 
@@ -18,7 +18,7 @@ function fromPos(knob, p) {
   return validateValue(knob, p).value;
 }
 
-export default function RangeKnob({ knob, value, onChange, describedBy }) {
+function RangeKnob({ knob, value, onChange, describedBy }) {
   const id = knobId(knob.key);
   const live = knob.live !== false;
   const [draft, setDraft] = useState(value);
@@ -42,7 +42,7 @@ export default function RangeKnob({ knob, value, onChange, describedBy }) {
 
   function commit(v) {
     dirty.current = false;
-    if (v !== value) onChange(v);
+    if (v !== value) onChange(knob.key, v);
   }
 
   function onSlider(e) {
@@ -128,3 +128,5 @@ export default function RangeKnob({ knob, value, onChange, describedBy }) {
     </div>
   );
 }
+
+export default memo(RangeKnob);

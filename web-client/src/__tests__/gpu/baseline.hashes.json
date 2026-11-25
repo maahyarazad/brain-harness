@@ -1,0 +1,94 @@
+{
+  "barnsley-fern": {
+    "hash": "f5c3eeaf961d9bdfc2bbbe96d06fd93575d6b758231a6b76c04be2cb9e813412",
+    "animated": false
+  },
+  "boids": {
+    "hash": "7fd0fee30a6bb432ec7b52ee2fc11f930bd0dbfd16c13584ed381b487782f349",
+    "animated": true
+  },
+  "chaos-game": {
+    "hash": "6dceb3e0799219b597cc87549f14c107759bb650fb418cd725bdd7efd501ab5e",
+    "animated": false
+  },
+  "collatz-coral": {
+    "hash": "4a63b6d6efa9e27f2a73008734ad269730624bd90a4111acbdd8b879183aa670",
+    "animated": false
+  },
+  "dla": {
+    "hash": "0cf6e61c43ef759bbdc6d739e1422ef8e657df016c14548b4100c9a911a6a3cd",
+    "animated": false
+  },
+  "double-pendulum": {
+    "hash": "fac53705b26a0a5d4d7f53261d117ee58f8012abe8953223c46181d2c25db75e",
+    "animated": true
+  },
+  "elementary-ca": {
+    "hash": "a2295e76b4dc5f45e849f767925e8cb1e92c176df3d0be6fecb16aa29ece2717",
+    "animated": true
+  },
+  "fourier-epicycles": {
+    "hash": "da3a697fc595904d855d33f74da28a65258cb99c327c1748a94b5cbe582682fc",
+    "animated": true
+  },
+  "game-of-life": {
+    "hash": "275002d5b782091d0b3e91057a2c20b7a94c7ac84f8b264a42cecc465414c838",
+    "animated": true
+  },
+  "gray-scott": {
+    "hash": "e0f8ae80a2d5f6b20b1363002d5502fca252f7fc031a58db1076d76361dbe45a",
+    "animated": true
+  },
+  "julia": {
+    "hash": "b77c2f018fef24c206af9debafe4fc6216563542cacc3a8ecd779094a9925171",
+    "animated": false
+  },
+  "l-system": {
+    "hash": "c4046c3a601801f1299b894a7fd40248524441fb8e82cb9c72b7ecedd5cda63e",
+    "animated": false
+  },
+  "langtons-ant": {
+    "hash": "74d1912fd34d42f1c020081e88861a9c4aaef10c205ee232aadf02d8ec5319e8",
+    "animated": true
+  },
+  "lorenz": {
+    "hash": "25a3438e6e5bdb1c9937a5fc0d51fd2e8f785d822522192207fdac07896e7c59",
+    "animated": true
+  },
+  "mandelbrot": {
+    "hash": "16a3623ee5cb77f34daf5180e174db926396ffe21bd179271aad1843d0da096d",
+    "animated": false
+  },
+  "maze": {
+    "hash": "46864ec9a405d8a3bc13d26b1a9d479ecdb50306325948d00ea34d2286ae9846",
+    "animated": true
+  },
+  "pascal-mod": {
+    "hash": "c546fd1e7e93d9b3585e0ee9ae1ac7fbf729b4dce49dea5c9d95c18f54d49e83",
+    "animated": false
+  },
+  "phyllotaxis": {
+    "hash": "a654071cad20e1ef27165c9972640b622a8971e0b3007a1106e5ea9b23b7b22b",
+    "animated": false
+  },
+  "recaman": {
+    "hash": "35ce590e43472494e43568b6c4366c41d7fd90e4599063c0a52ab5c73c88cf49",
+    "animated": true
+  },
+  "sorting": {
+    "hash": "f41edd931e49d65800c9faaa4e612cdaebf955b266c46d6fac69bb4071723ede",
+    "animated": true
+  },
+  "times-table": {
+    "hash": "f1cd21d4094d0bbaa7f6b2af6cc852b3229cac611a7d957885650477fbe39c51",
+    "animated": true
+  },
+  "ulam-spiral": {
+    "hash": "c5b1b2bcfda790a74c2ccfbdf3b82d7b23afa86c7b1b1c7d84b8538c8f80acc2",
+    "animated": false
+  },
+  "voronoi": {
+    "hash": "ab3829707af259ef7e7b21fe7159af81f3693b7c06dff190a91d3e040cde0a07",
+    "animated": false
+  }
+}

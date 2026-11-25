@@ -2,6 +2,8 @@ import { createFlock, flockStep } from "./kernel.js";
 import { fitAspect, BG } from "../_shared/instance.js";
 import { clear } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
+import { openGpu } from "../_shared/gpu/index.js";
+import { createBoidsGpu } from "./gpu.js";
 
 const ASPECT = 4 / 3;
 const rule = (key, label, def) => ({ key, label, type: "range", min: 0, max: 3, step: 0.05, default: def });
@@ -44,6 +46,14 @@ export default {
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { steps: 300 },
   create(canvas, config, ctx) {
+    // The GPU path needs float textures to render into; without them, or without WebGL, the processor path below runs as before (FR-034).
+    const gpu = openGpu(canvas, { need: ["floatTarget"], ctx });
+    return gpu ? createBoidsGpu(canvas, gpu, config, ctx, { ASPECT }) : createProcessor(canvas, config, ctx);
+  },
+};
+
+/** The processor path: the flock on the CPU with a 2D canvas. It is the fallback and the oracle for the GPU path. */
+function createProcessor(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
     let flock;
@@ -110,5 +120,4 @@ export default {
         }
       },
     };
-  },
-};
+}

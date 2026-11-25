@@ -3,8 +3,12 @@ import { registerKernel } from "../../core/workerPool.js";
 import { gridImage, fitAspect, BG, BG_RGB } from "../_shared/instance.js";
 import { clear } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
+import { effectiveLevel } from "../../core/quality.js";
 
 registerKernel("dlaGrow", dlaGrow);
+
+/** How many of the requested particles each quality level grows. Medium is today's behaviour. */
+const QUALITY = { levers: { low: { particles: 0.25 }, medium: { particles: 1 }, high: { particles: 1 } } };
 
 export default {
   id: "dla",
@@ -33,6 +37,9 @@ export default {
   sweep: { periodMs: 60000, minIntervalMs: 2000, targets: [{ key: "stickiness", mode: "wave", min: 0.2, max: 1 }], presetValues: { particles: 4000 } },
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { presetId: "frost" },
+  // Quality (specs/005 contracts/quality.md): a resolution scale does nothing for DLA (its cost is the number of
+  // walkers), so Low grows a quarter as many particles. Measured on the bench; see specs/005-.../measurements.md.
+  quality: QUALITY,
   create(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
@@ -70,7 +77,8 @@ export default {
         result = null;
         clear(g, BG);
       }
-      const { particles, stickiness, seedShape } = cfg.values;
+      const { stickiness, seedShape } = cfg.values;
+      const particles = Math.max(100, Math.round(cfg.values.particles * QUALITY.levers[effectiveLevel(cfg.values)].particles));
       task = ctx.runKernel(
         "dlaGrow",
         { particles, stickiness, seedShape, seed: cfg.seed },

@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import ToolCallCard from "./ToolCallCard.jsx";
 
-function InputBubble({ exchange }) {
+export const InputBubble = memo(function InputBubble({ exchange }) {
   if (exchange.kind === "chat") {
     return (
       <div className="bubble-user">
@@ -18,9 +18,9 @@ function InputBubble({ exchange }) {
       <code>{name}</code> {JSON.stringify(args)}
     </div>
   );
-}
+});
 
-function Exchange({ exchange }) {
+export const Exchange = memo(function Exchange({ exchange }) {
   return (
     <div className="exchange">
       <InputBubble exchange={exchange} />
@@ -42,9 +42,9 @@ function Exchange({ exchange }) {
       )}
     </div>
   );
-}
+});
 
-export default function ExchangeList({ exchanges }) {
+function ExchangeList({ exchanges }) {
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -63,3 +63,5 @@ export default function ExchangeList({ exchanges }) {
     </main>
   );
 }
+
+export default memo(ExchangeList);

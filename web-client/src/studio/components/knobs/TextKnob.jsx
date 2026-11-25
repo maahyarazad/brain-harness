@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { textError } from "../../core/knobs.js";
 import { knobId } from "./format.js";
 
-export default function TextKnob({ knob, value, onChange, describedBy }) {
+function TextKnob({ knob, value, onChange, describedBy }) {
   const id = knobId(knob.key);
   const [text, setText] = useState(value);
   const [error, setError] = useState(null);
@@ -15,7 +15,7 @@ export default function TextKnob({ knob, value, onChange, describedBy }) {
   function commit() {
     const err = textError(knob, text);
     setError(err);
-    if (!err && text !== value) onChange(text);
+    if (!err && text !== value) onChange(knob.key, text);
   }
 
   const common = {
@@ -70,3 +70,5 @@ export default function TextKnob({ knob, value, onChange, describedBy }) {
     </div>
   );
 }
+
+export default memo(TextKnob);

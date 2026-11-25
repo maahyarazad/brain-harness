@@ -1,4 +1,5 @@
-export default function PresetMenu({ presets, activeId, onApply }) {
+import { memo } from "react";
+function PresetMenu({ presets, activeId, onApply }) {
   if (!presets?.length) return null;
   return (
     <section className="panel" aria-labelledby="presets-heading">
@@ -19,3 +20,5 @@ export default function PresetMenu({ presets, activeId, onApply }) {
     </section>
   );
 }
+
+export default memo(PresetMenu);

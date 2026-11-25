@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function getRecognitionClass() {
   if (typeof window === "undefined") return null;
@@ -65,5 +65,5 @@ export function useSpeechInput({ onTranscript }) {
   // Stop listening if the component unmounts
   useEffect(() => () => recognizerRef.current?.abort?.(), []);
 
-  return { supported, listening, error, start, stop };
+  return useMemo(() => ({ supported, listening, error, start, stop }), [supported, listening, error, start, stop]);
 }

@@ -2,6 +2,8 @@ import { lorenzRK4, project } from "./kernel.js";
 import { BG } from "../_shared/instance.js";
 import { clear } from "../_shared/draw.js";
 import { paletteKnob } from "../../core/palettes.js";
+import { openGpu } from "../_shared/gpu/index.js";
+import { createLorenzGpu } from "./gpu.js";
 
 const DT = 0.005;
 const DEFAULT_VIEW = { yaw: 0.6, pitch: 0.3 };
@@ -44,6 +46,14 @@ export default {
   // The catalog card's sample picture (contracts/thumbnail.md).
   thumbnail: { values: { trail: 12000 }, steps: 12000 },
   create(canvas, config, ctx) {
+    // The GPU path when the browser has WebGL (and can draw instanced geometry); otherwise the processor path below, exactly as before (FR-034).
+    const gpu = openGpu(canvas, { need: ["instancing"], ctx });
+    return gpu ? createLorenzGpu(canvas, gpu, config, ctx, { DT, DEFAULT_VIEW }) : createProcessor(canvas, config, ctx);
+  },
+};
+
+/** The processor path: the trails drawn on a 2D canvas. It is the fallback and the oracle for the GPU path. */
+function createProcessor(canvas, config, ctx) {
     const g = canvas.getContext("2d");
     let cfg = config;
     let view = { ...(config.view ?? DEFAULT_VIEW) };
@@ -143,5 +153,4 @@ export default {
         }
       },
     };
-  },
-};
+}

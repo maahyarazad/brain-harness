@@ -1,6 +1,7 @@
+import { memo } from "react";
 import { SPEEDS } from "../core/loop.js";
 
-export default function PlaybackBar({ playing, speed, onPlay, onPause, onStep, onSpeed, onReset }) {
+function PlaybackBar({ playing, speed, onPlay, onPause, onStep, onSpeed, onReset }) {
   return (
     <div className="playback" role="group" aria-label="Playback">
       <button
@@ -33,3 +34,5 @@ export default function PlaybackBar({ playing, speed, onPlay, onPause, onStep, o
     </div>
   );
 }
+
+export default memo(PlaybackBar);
