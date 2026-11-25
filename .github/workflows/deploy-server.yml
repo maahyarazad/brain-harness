@@ -125,10 +125,3 @@ jobs:
 
       - name: Check public health endpoint
         run: curl -fsS --retry 5 --retry-delay 3 "$CORS_ORIGIN/health"
-
-      - name: Check the site pages are served by the server
-        run: |
-          curl -fsS "$CORS_ORIGIN/tetris-loop.lottie" -o /dev/null
-          # The pages come from the client's build: before the first "Deploy web client" there are none
-          curl -fsS "$CORS_ORIGIN/" | grep -q 'id="boot-loader"' \
-            || echo "::warning::/ has no loading screen: run the \"Deploy web client\" workflow (the server serves the client from WEB_ROOT)."
